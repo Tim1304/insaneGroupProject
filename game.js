@@ -1,48 +1,77 @@
-// @ts-check
-
+// @ts-nocheck
 import * as T from "./CS559-Three/build/three.module.js";
 
-// @@Snippet:createRenderer
-let renderer = new T.WebGLRenderer( { antialias: true } );
-renderer.setSize(800, 600); // was (window.innerWidth, window.innerHeight );
+import { createBasicMap } from "./placeholders/mapPlaceholder.js";
+import { createPlayerController } from "./placeholders/playerPlaceholder.js";
+
+import { initNPCSystem, updateNPCSystem } from "./systems/npcSystem.js";
+import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js";
+import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
+import { initUISystem, updateUISystem } from "./systems/uiSystem.js";
+
+// --- Renderer setup ---
+const renderer = new T.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+renderer.setSize(window.innerWidth, window.innerHeight);
 document.getElementById("div1").appendChild(renderer.domElement);
-// @@Snippet:end
 
-// the aspect ratio is set to 1 - since we're making the window 200x200
-let camera = new T.PerspectiveCamera(50, 800 / 600, 0.1, 1000);
+// --- Scene & camera ---
+const scene = new T.Scene();
+scene.background = new T.Color(0x202020);
 
-let scene = new T.Scene();
+const camera = new T.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+camera.position.set(0, 5, 10);
+camera.lookAt(0, 0, 0);
 
-let geometry = new T.BoxGeometry(1, 1, 1);
-// this was "MeshBasicMaterial"
-let material = new T.MeshStandardMaterial({ color: 0x00ff00 });
-let cube = new T.Mesh(geometry, material);
-scene.add(cube);
-
-// we don't see anything if there is no light
-let ambientLight = new T.AmbientLight(0xffffff, 0.5);
+// --- Lights ---
+const ambientLight = new T.AmbientLight(0xffffff, 0.3);
 scene.add(ambientLight);
-let pointLight = new T.PointLight(0xffffff, 1, 0, 0); // no decay
-pointLight.position.set(25, 50, 25);
-scene.add(pointLight);
 
-camera.position.z = 5;
+const dirLight = new T.DirectionalLight(0xffffff, 1.0);
+dirLight.position.set(10, 20, 10);
+scene.add(dirLight);
 
-let lastTimestamp; // undefined to start
+// --- Map placeholder (Tim) ---
+const mapInfo = createBasicMap(T, scene);
 
-function animate(timestamp) {
-    // Convert time change from milliseconds to seconds
-    let timeDelta = 0.002 * (lastTimestamp ? timestamp - lastTimestamp : 0);
-    lastTimestamp = timestamp;
+// --- Player placeholder (Aiden) ---
+const playerController = createPlayerController(T, scene, mapInfo);
 
-    cube.rotation.x += 0.5 * timeDelta;
-    cube.rotation.y += 0.5 * timeDelta;
+// --- Your systems ---
+initNPCSystem(scene, playerController);
+initDialogSystem(scene, playerController);
+initCameraSystem(scene, camera, playerController, renderer.domElement);
+initUISystem(renderer.domElement, playerController);
 
-    renderer.render(scene, camera);
-    window.requestAnimationFrame(animate);
+// --- Resize handling ---
+window.addEventListener("resize", () => {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+});
+
+// --- Main loop ---
+let lastTime = 0;
+
+function animate(time) {
+  const dt = (time - lastTime) / 1000 || 0;
+  lastTime = time;
+
+  playerController.update(dt);
+  updateNPCSystem(dt);
+  updateDialogSystem(dt);
+  updateCameraSystem(dt);
+  updateUISystem(dt);
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
 }
 
-window.requestAnimationFrame(animate);
-
-// CS559 2025 Workbook
-
+requestAnimationFrame(animate);
