@@ -147,8 +147,8 @@ export function createPlayerController(T, scene, mapInfo) {
 
     if (keys.has(KEY.W)) moveDir.add(forward);
     if (keys.has(KEY.S)) moveDir.addScaledVector(forward, -1);
-    if (keys.has(KEY.A)) moveDir.addScaledVector(right, -1);
-    if (keys.has(KEY.D)) moveDir.add(right);
+    if (keys.has(KEY.A)) moveDir.add(right);
+    if (keys.has(KEY.D)) moveDir.addScaledVector(right, -1);
 
     if (moveDir.lengthSq() > 0) {
       moveDir.normalize();

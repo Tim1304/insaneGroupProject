@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-check
 import * as T from "./CS559-Three/build/three.module.js";
 
 import { createBasicMap } from "./placeholders/mapPlaceholder.js";
@@ -7,7 +7,8 @@ import { createPlayerController } from "./placeholders/playerPlaceholder.js";
 import { initNPCSystem, updateNPCSystem } from "./systems/npcSystem.js";
 import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js";
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
-import { initUISystem, updateUISystem } from "./systems/uiSystem.js";
+import { createPlayerStats } from "./placeholders/playerStatsPlaceholder.js";
+import { initUIManager, updateUIManager } from "./systems/ui/uiManager.js";
 
 // --- Renderer setup ---
 const renderer = new T.WebGLRenderer({ antialias: true });
@@ -42,11 +43,14 @@ const mapInfo = createBasicMap(T, scene);
 // --- Player placeholder (Aiden) ---
 const playerController = createPlayerController(T, scene, mapInfo);
 
+// --- Player stats placeholder (Aiden) ---
+const playerStats = createPlayerStats();
+
 // --- Your systems ---
 initNPCSystem(scene, playerController);
 initDialogSystem(scene, playerController);
 initCameraSystem(scene, camera, playerController, renderer.domElement);
-initUISystem(renderer.domElement, playerController);
+initUIManager(renderer.domElement, playerController, playerStats);
 
 // --- Resize handling ---
 window.addEventListener("resize", () => {
@@ -68,7 +72,7 @@ function animate(time) {
   updateNPCSystem(dt);
   updateDialogSystem(dt);
   updateCameraSystem(dt);
-  updateUISystem(dt);
+  updateUIManager(dt);
 
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
