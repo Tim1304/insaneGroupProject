@@ -67,6 +67,12 @@ const mapInfo = createBasicMap(T, scene);
 const playerController = createPlayerController(T, scene, mapInfo);
 
 // --- Player stats placeholder (Aiden) ---
+/* returns:
+    getHealth: () => health,
+    getStamina: () => stamina,
+
+    more to be added later...
+ */
 const playerStats = createPlayerStats();
 
 // --- Your systems ---
