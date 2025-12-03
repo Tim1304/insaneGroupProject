@@ -220,6 +220,5 @@ export function createPlayerController(T, scene, mapInfo) {
     setLookAngles,
     getEyePosition,
     getForwardDirection,
-    attack,        // exposed, but currently triggered by our mousedown listener
   };
 }

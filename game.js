@@ -41,6 +41,19 @@ scene.add(dirLight);
 const mapInfo = createBasicMap(T, scene);
 
 // --- Player placeholder (Aiden) ---
+/* returns:
+  1. mesh
+  2. update(dt) 
+  3. setLookAngles(yaw, pitch) where 
+          • yaw (number): rotation around vertical axis.
+          • pitch (number): rotation around horizontal axis.
+  4. getEyePosition()
+          • Returns a THREE.Vector3.
+          • Represents where the camera should be placed (eye height).
+  5. getForwardDirection
+          • Returns a normalized THREE.Vector3.
+          • Represents viewing direction calculated from stored yaw/pitch.
+ */
 const playerController = createPlayerController(T, scene, mapInfo);
 
 // --- Player stats placeholder (Aiden) ---
