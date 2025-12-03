@@ -137,6 +137,8 @@ function showDialog(npcName, node) {
 
     dialogContainer.style.display = "block";
 
+    dialogContainer.onclick = null;
+
     dialogTitle.textContent = npcName || "Someone";
     dialogText.textContent = node.text || "";
 

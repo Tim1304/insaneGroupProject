@@ -75,7 +75,7 @@ const playerController = createPlayerController(T, scene, mapInfo);
  */
 const playerStats = createPlayerStats();
 
-// --- Your systems ---
+// --- systems ---
 initNPCSystem(T, scene, playerController);
 initDialogSystem(scene, playerController);
 initCameraSystem(scene, camera, playerController, renderer.domElement);
