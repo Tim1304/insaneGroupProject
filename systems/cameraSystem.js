@@ -6,90 +6,88 @@ let playerRef = null;
 let domRef = null;
 
 let pointerLocked = false;
+let inDialog = false;
+
+// yaw / pitch for FPS look
 let yaw = 0;
 let pitch = 0;
-const pitchLimit = Math.PI / 2 - 0.1;
+const pitchLimit = Math.PI / 2 - 0.1; // avoid flipping over
 
 export function initCameraSystem(scene, camera, playerController, domElement) {
-    sceneRef = scene;
-    cameraRef = camera;
-    playerRef = playerController;
-    domRef = domElement;
+  sceneRef = scene;
+  cameraRef = camera;
+  playerRef = playerController;
+  domRef = domElement;
 
-    if (!domRef) {
+  if (!domRef) {
     console.warn("CameraSystem: no DOM element provided for pointer lock.");
     return;
-    }
+  }
 
-    domRef.addEventListener("click", () => {
+  // Left click: request pointer lock if not in dialog and not already locked.
+  domRef.addEventListener("click", () => {
+    if (inDialog) return;
     if (!pointerLocked) {
-        domRef.requestPointerLock();
-        return;
+      domRef.requestPointerLock();
     }
+    // When pointer is already locked, we intentionally do nothing here.
+    // Aiden is free to attach their own mousedown listener elsewhere
+    // to handle attacks / interactions.
+  });
 
-    if (playerRef && playerRef.attack) {
-        playerRef.attack();
-
-        // 🔔 Notify weapon UI that an attack happened
-        const weapon =
-        playerRef.getWeapon && typeof playerRef.getWeapon === "function"
-            ? playerRef.getWeapon()
-            : null;
-
-        window.dispatchEvent(
-        new CustomEvent("weapon-attack", {
-            detail: { weapon },
-        })
-        );
-    }
-    });
-
-    document.addEventListener("pointerlockchange", () => {
+  // Track pointer lock state
+  document.addEventListener("pointerlockchange", () => {
     pointerLocked = document.pointerLockElement === domRef;
-    });
+  });
 
-    document.addEventListener("mousemove", (e) => {
+  // Mouse look while pointer is locked
+  document.addEventListener("mousemove", (e) => {
     if (!pointerLocked) return;
-    if (!playerRef) return;
+    if (!playerRef || typeof playerRef.setLookAngles !== "function") return;
 
     const sensitivity = 0.0025;
 
-    // moving mouse right -> look right
-    yaw += e.movementX * sensitivity;
-    // mouse up -> look up
+    // Moving mouse right -> look right
+    yaw -= e.movementX * sensitivity;
+    // Moving mouse up -> look up
     pitch -= e.movementY * sensitivity;
 
+    // Clamp pitch to avoid flipping
     pitch = Math.max(-pitchLimit, Math.min(pitchLimit, pitch));
 
     playerRef.setLookAngles(yaw, pitch);
-    });
+  });
 
-    // --- Dialog integration ---
+  // --- Dialog integration: unlock pointer when dialog opens ---
 
-    // When dialog starts, unlock pointer and show cursor
-    window.addEventListener("dialog-start", () => {
-    // Exit pointer lock if active
+  window.addEventListener("dialog-start", () => {
+    inDialog = true;
     if (document.pointerLockElement === domRef) {
-    document.exitPointerLock();
+      document.exitPointerLock();
     }
-    });
+  });
 
-    // When dialog ends, pointer is no longer locked
-    // Next click will request pointer lock again (as normal)
-    window.addEventListener("dialog-end", () => {
-    // Nothing special needed — next click will re-lock
-    });
+  window.addEventListener("dialog-end", () => {
+    inDialog = false;
+    // We don't auto-lock here; next click will lock again.
+  });
 
-
-    console.log("Camera system initialized.");
+  console.log("Camera system initialized.");
 }
 
 export function updateCameraSystem(dt) {
-    if (!cameraRef || !playerRef) return;
+  if (!cameraRef || !playerRef) return;
 
-    const eye = playerRef.getEyePosition();
-    const dir = playerRef.getForwardDirection();
+  if (
+    typeof playerRef.getEyePosition !== "function" ||
+    typeof playerRef.getForwardDirection !== "function"
+  ) {
+    return;
+  }
 
-    cameraRef.position.copy(eye);
-    cameraRef.lookAt(eye.clone().add(dir));
+  const eye = playerRef.getEyePosition();
+  const dir = playerRef.getForwardDirection();
+
+  cameraRef.position.copy(eye);
+  cameraRef.lookAt(eye.clone().add(dir));
 }

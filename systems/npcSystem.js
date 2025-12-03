@@ -71,37 +71,37 @@ export function updateNPCSystem(dt) {
 // --- Helpers used by dialogSystem ---
 
 export function getNPCs() {
-    return npcs;
+  return npcs;
 }
 
 export function getNearestTalkableNPC(playerPosition, maxDistance) {
-    let best = null;
-    let bestDistSq = maxDistance * maxDistance;
+  let best = null;
+  let bestDistSq = maxDistance * maxDistance;
 
-    for (const npc of npcs) {
+  for (const npc of npcs) {
     if (!npc.talkable) continue;
     const dx = npc.mesh.position.x - playerPosition.x;
     const dy = npc.mesh.position.y - playerPosition.y;
     const dz = npc.mesh.position.z - playerPosition.z;
     const distSq = dx * dx + dy * dy + dz * dz;
     if (distSq <= bestDistSq) {
-        best = npc;
-        bestDistSq = distSq;
+      best = npc;
+      bestDistSq = distSq;
     }
-    }
-    return best;
+  }
+  return best;
 }
 
 export function setNPCHostile(npcId, hostile) {
-    const npc = npcs.find((n) => n.id === npcId);
-    if (!npc) return;
+  const npc = npcs.find((n) => n.id === npcId);
+  if (!npc) return;
 
-    npc.hostile = hostile;
-    npc.talkable = !hostile;  // <-- important fix
+  npc.hostile = hostile;
+  npc.talkable = !hostile;  // <-- important fix
 
-    if (hostile) {
+  if (hostile) {
     console.log(`[NPC SYSTEM] ${npc.name} (${npc.id}) is now hostile!`);
-    } else {
+  } else {
     console.log(`[NPC SYSTEM] ${npc.name} (${npc.id}) calmed down.`);
-    }
+  }
 }

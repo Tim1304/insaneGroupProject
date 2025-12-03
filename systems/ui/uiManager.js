@@ -19,40 +19,40 @@ let playerStatsRef = null;
 let uiRoot = null;
 
 export function initUIManager(domElement, playerController, playerStats) {
-    domRef = domElement;
-    playerRef = playerController;
-    playerStatsRef = playerStats;
+  domRef = domElement;
+  playerRef = playerController;
+  playerStatsRef = playerStats;
 
-    createUIRoot();
+  createUIRoot();
 
-    initPlayerStatusUI(uiRoot, playerStatsRef);
-    initDialogUI(uiRoot);
-    initHUDUI(uiRoot, playerRef, playerStatsRef);
+  initPlayerStatusUI(uiRoot, playerStatsRef);
+  initDialogUI(uiRoot);
+  initHUDUI(uiRoot, playerRef, playerStatsRef);
 
-    console.log("UI Manager initialized.");
+  console.log("UI Manager initialized.");
 }
 
 function createUIRoot() {
-    if (uiRoot) return;
+  if (uiRoot) return;
 
-    uiRoot = document.createElement("div");
-    uiRoot.style.position = "fixed";
-    uiRoot.style.left = "0";
-    uiRoot.style.top = "0";
-    uiRoot.style.width = "100%";
-    uiRoot.style.height = "100%";
-    uiRoot.style.pointerEvents = "none";
-    uiRoot.style.zIndex = "1000";
-    uiRoot.style.fontFamily =
+  uiRoot = document.createElement("div");
+  uiRoot.style.position = "fixed";
+  uiRoot.style.left = "0";
+  uiRoot.style.top = "0";
+  uiRoot.style.width = "100%";
+  uiRoot.style.height = "100%";
+  uiRoot.style.pointerEvents = "none";
+  uiRoot.style.zIndex = "1000";
+  uiRoot.style.fontFamily =
     "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-    document.body.appendChild(uiRoot);
+  document.body.appendChild(uiRoot);
 }
 
 export function updateUIManager(dt) {
-    if (!playerStatsRef) return;
+  if (!playerStatsRef) return;
 
-    updatePlayerStatusUI(dt);
-    updateDialogUI(dt);
-    updateHUDUI(dt);
+  updatePlayerStatusUI(dt);
+  updateDialogUI(dt);
+  updateHUDUI(dt);
 }
