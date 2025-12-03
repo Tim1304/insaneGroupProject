@@ -7,7 +7,6 @@ const KEY = {
   D: "KeyD",
   DIGIT1: "Digit1",
   DIGIT2: "Digit2",
-  E: "KeyE",
 };
 
 export function createPlayerController(T, scene, mapInfo) {
@@ -202,11 +201,6 @@ export function createPlayerController(T, scene, mapInfo) {
   // --- Exposed update function ---
   function update(dt) {
     meleeCooldown = Math.max(0, meleeCooldown - dt);
-
-    if (keys.has(KEY.E)) {
-      keys.delete(KEY.E);
-      tryInteract();
-    }
 
     updateMovement(dt);
     updateArrows(dt);
