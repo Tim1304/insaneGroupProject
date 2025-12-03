@@ -30,9 +30,7 @@ export function initCameraSystem(scene, camera, playerController, domElement) {
     if (!pointerLocked) {
       domRef.requestPointerLock();
     }
-    // When pointer is already locked, we intentionally do nothing here.
-    // Aiden is free to attach their own mousedown listener elsewhere
-    // to handle attacks / interactions.
+    // When pointer is already locked, we do nothing here.
   });
 
   // Track pointer lock state
@@ -69,7 +67,6 @@ export function initCameraSystem(scene, camera, playerController, domElement) {
 
   window.addEventListener("dialog-end", () => {
     inDialog = false;
-    // We don't auto-lock here; next click will lock again.
   });
 
   console.log("Camera system initialized.");

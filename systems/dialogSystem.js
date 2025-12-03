@@ -17,7 +17,7 @@ let currentNode = null;
 let promptNPCId = null;
 
 // Simple sample dialog definitions
-// You can expand/replace later.
+// can expand/replace later.
 const dialogDefs = {
   innkeeper: {
     start: "greet",

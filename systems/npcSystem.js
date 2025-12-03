@@ -97,7 +97,7 @@ export function setNPCHostile(npcId, hostile) {
   if (!npc) return;
 
   npc.hostile = hostile;
-  npc.talkable = !hostile;  // <-- important fix
+  npc.talkable = !hostile;
 
   if (hostile) {
     console.log(`[NPC SYSTEM] ${npc.name} (${npc.id}) is now hostile!`);

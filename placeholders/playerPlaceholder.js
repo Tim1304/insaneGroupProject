@@ -77,8 +77,6 @@ export function createPlayerController(T, scene, mapInfo) {
     pos.z = Math.max(b.minZ, Math.min(b.maxZ, pos.z));
   }
 
-  // --- Camera helpers expected by cameraSystem ---
-
   function setLookAngles(newYaw, newPitch) {
     yaw = newYaw;
     // Clamp pitch a bit to avoid crazy angles
@@ -139,7 +137,7 @@ export function createPlayerController(T, scene, mapInfo) {
   }
 
   function meleeAttack() {
-    // Very simple: if close enough to the dummy, "hit" it
+    // if close enough to the dummy, "hit" it
     const dist = player.position.distanceTo(dummy.position);
     if (dist < 2.5) {
       console.log("Melee hit on dummy!");

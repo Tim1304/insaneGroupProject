@@ -185,5 +185,5 @@ function showDialog(npcName, node) {
 
 export function updateDialogUI(dt) {
     // For now, nothing per-frame.
-    // If we want dialog fade-ins / typing effects later, they'll go here.
+    // If we want dialog fade-ins / typing effects later, could go here.
 }

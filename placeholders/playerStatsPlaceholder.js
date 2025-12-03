@@ -15,9 +15,6 @@ export function createPlayerStats() {
     return Math.max(0, Math.min(100, value));
   }
 
-  // For debugging: see key codes in console if needed
-  // document.addEventListener("keydown", (e) => console.log(e.code));
-
   document.addEventListener("keydown", (e) => {
     switch (e.code) {
       case KEY.HEALTH_DOWN:
