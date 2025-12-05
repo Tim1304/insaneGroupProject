@@ -24,8 +24,9 @@ scene.add(new Gen.Birch(new T.Vector3(5, 0, 5), 1));
 scene.add(new Gen.Spruce(new T.Vector3(5, 0, 10), 1.5));
 scene.add(new Gen.Rock(new T.Vector3(10, 0, 5), 2));
 scene.add(new Gen.Well(new T.Vector3(10, 0, 10), 1));
-scene.add(new Gen.Oak(new T.Vector3(0, 0, 5), 1.2));
-
+scene.add(new Gen.Oak(new T.Vector3(0, 0, 10), 1.2));
+scene.add(new Gen.Bush(new T.Vector3(-3, 0, 10), 1.3));
+scene.add(new Gen.Barrel(new T.Vector3(0, 0, 5), 1));
 scene.background = new T.Color(0x202020);
 
 const camera = new T.PerspectiveCamera(

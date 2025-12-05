@@ -188,12 +188,15 @@ export class Oak extends T.Group {
         let leaves5 = leaves.clone();
         leaves5.scale.set(1.4, 1.1, 1.4);
         leaves5.position.set(0.8, 3.8, -0.4);
-        
+
         this.add(leaves);
         this.add(leaves2);
         this.add(leaves3);
         this.add(leaves4);
         this.add(leaves5);
+
+        // Store leaf clusters for animations
+        this.leafClusters = [leaves, leaves2, leaves3, leaves4, leaves5];
 
         // Place and rescale based on passed params
         this.position.copy(position);
@@ -204,6 +207,49 @@ export class Oak extends T.Group {
 export class Bush extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
+
+        // Bush base
+        let stemGeometry = new T.ConeGeometry(0.05, 1);
+        let tl = new T.TextureLoader().load('./env/textures/spruce.jpg');
+        let stemMaterial = new T.MeshStandardMaterial({ map: tl });
+        let stem = new T.Mesh(stemGeometry, stemMaterial);
+        stem.position.y += 0.5;
+        this.add(stem);
+        // Branches
+        let pivotBranch = new T.Group();
+        pivotBranch.position.set(0, 0.3, 0);
+        let branch1 = stem.clone();
+        branch1.scale.set(0.6, 0.6, 0.6);
+        branch1.position.set(0, 0.3, 0);
+        pivotBranch.add(branch1);
+        pivotBranch.rotateX(Math.PI / 3);
+        // Add full circle of branches
+        for (let i = 1; i <= 6; i += 2) {
+            let branchClone = pivotBranch.clone();
+            branchClone.rotateOnWorldAxis(new T.Vector3(0, 1, 0), 2 * i * Math.PI / 6);
+            this.add(branchClone);
+        }
+        // Leaves
+        let leavesTexture = new T.TextureLoader().load('./env/textures/bush.jpg');
+        leavesTexture.wrapS = T.RepeatWrapping;
+        leavesTexture.wrapT = T.RepeatWrapping;
+        leavesTexture.repeat.set(2, 2);
+        let leafGeometry = new T.SphereGeometry(0.5, 8, 8);
+        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.5 });
+        let leaves = new T.Mesh(leafGeometry, leafMaterial);
+        leaves.position.set(0, 0.8, 0);
+        let leaves2 = leaves.clone();
+        leaves2.position.set(0.2, 0.5, 0.3);
+        let leaves3 = leaves.clone();
+        leaves3.position.set(-0.15, 0.65, -0.15);
+        let leaves4 = leaves.clone();
+        leaves4.position.set(0.08, 0.6, -0.18);
+        this.add(leaves);
+        this.add(leaves2);
+        this.add(leaves3);
+        this.add(leaves4);
+
+        // Place and rescale based on passed params
         this.position.copy(position);
         this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
     }
@@ -264,6 +310,26 @@ export class Well extends T.Group {
             well.scale.set(1.7, 1.7, 1.7);
             well.position.y += 1.7;
             this.add(well);
+        });
+        this.add(gltf);
+
+        // Place and rescale based on passed params
+        this.position.copy(position);
+        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
+    }
+}
+
+export class Barrel extends T.Group {
+    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
+        super();
+
+        const loader = new GLTFLoader();
+        let barrel;
+        const gltf = loader.load('./env/readyMades/barrel.glb', (gltf) => {
+            barrel = gltf.scene;
+            barrel.position.y += 0.7;
+            barrel.scale.set(0.5, 0.7, 0.5);
+            this.add(barrel);
         });
         this.add(gltf);
 
