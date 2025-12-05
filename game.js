@@ -125,10 +125,10 @@ function animate(time) {
   // Skybox color shift logic
   // Shifts to next skybox every minute
   timeSinceLastSkybox += dt;
-  if (timeSinceLastSkybox >= 60) {
+  if (timeSinceLastSkybox >= 5) {
     if (currentSkybox === 0) {
       dayToNight = true;
-    } else if (currentSkybox === 5) {
+    } else if (currentSkybox === 4) {
       dayToNight = false;
     }
     timeSinceLastSkybox = 0;
