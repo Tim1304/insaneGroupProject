@@ -27,7 +27,15 @@ scene.add(new Gen.Well(new T.Vector3(10, 0, 10), 1));
 scene.add(new Gen.Oak(new T.Vector3(0, 0, 10), 1.2));
 scene.add(new Gen.Bush(new T.Vector3(-3, 0, 10), 1.3));
 scene.add(new Gen.Barrel(new T.Vector3(0, 0, 5), 1));
-scene.background = new T.Color(0x202020);
+
+// Test draw skybox
+const loader = new T.CubeTextureLoader();
+loader.setPath('./env/textures/sky/2/');
+const textureCube = loader.load([
+  'left.png', 'right.png', 'top.png', 'bottom.png', 'back.png', 'front.png'
+]);
+
+scene.background = textureCube;
 
 const camera = new T.PerspectiveCamera(
   75,

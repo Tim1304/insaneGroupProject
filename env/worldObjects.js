@@ -52,7 +52,7 @@ export class Birch extends T.Group {
         // Leaves
         let leavesTexture = new T.TextureLoader().load('./env/textures/leaves.jpg');
         let leafGeometry = new T.SphereGeometry(1.2, 8, 8);
-        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.7 });
+        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.8 });
         let leaves = new T.Mesh(leafGeometry, leafMaterial);
         leaves.scale.set(1.2, 1.5, 1);
         leaves.position.set(0, 4.5, 0);
@@ -113,7 +113,7 @@ export class Spruce extends T.Group {
         needlesTexture.wrapT = T.RepeatWrapping;
         needlesTexture.repeat.set(4, 4);
         let topNeedlesGeometry = new T.ConeGeometry(0.9, 1.45, 1000);
-        let needlesMaterial = new T.MeshStandardMaterial({ map: needlesTexture, transparent: true, opacity: 0.6 });
+        let needlesMaterial = new T.MeshStandardMaterial({ map: needlesTexture, transparent: true, opacity: 0.85 });
         let topNeedles = new T.Mesh(topNeedlesGeometry, needlesMaterial);
         topNeedles.position.set(0, 2.8, 0);
         this.add(topNeedles);
@@ -235,7 +235,7 @@ export class Bush extends T.Group {
         leavesTexture.wrapT = T.RepeatWrapping;
         leavesTexture.repeat.set(2, 2);
         let leafGeometry = new T.SphereGeometry(0.5, 8, 8);
-        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.5 });
+        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.6 });
         let leaves = new T.Mesh(leafGeometry, leafMaterial);
         leaves.position.set(0, 0.8, 0);
         let leaves2 = leaves.clone();
