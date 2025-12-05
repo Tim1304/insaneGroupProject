@@ -28,15 +28,6 @@ scene.add(new Gen.Oak(new T.Vector3(0, 0, 10), 1.2));
 scene.add(new Gen.Bush(new T.Vector3(-3, 0, 10), 1.3));
 scene.add(new Gen.Barrel(new T.Vector3(0, 0, 5), 1));
 
-// Test draw skybox
-const loader = new T.CubeTextureLoader();
-loader.setPath('./env/textures/sky/2/');
-const textureCube = loader.load([
-  'left.png', 'right.png', 'top.png', 'bottom.png', 'back.png', 'front.png'
-]);
-
-scene.background = textureCube;
-
 const camera = new T.PerspectiveCamera(
   75,
   window.innerWidth / window.innerHeight,
@@ -109,6 +100,17 @@ window.addEventListener("resize", () => {
 
 // --- Main loop ---
 let lastTime = 0;
+// Switch to determine the direction of the skybox shift
+let dayToNight = true;
+let currentSkybox = 0;
+let timeSinceLastSkybox = 0;
+let parentDir = './env/textures/sky/';
+const loader = new T.CubeTextureLoader();
+loader.setPath(parentDir + `${currentSkybox}/`);
+let textureCube = loader.load([
+  'left.png', 'right.png', 'top.png', 'bottom.png', 'back.png', 'front.png'
+]);
+scene.background = textureCube;
 
 function animate(time) {
   const dt = (time - lastTime) / 1000 || 0;
@@ -119,6 +121,25 @@ function animate(time) {
   updateDialogSystem(dt);
   updateCameraSystem(dt);
   updateUIManager(dt);
+
+  // Skybox color shift logic
+  // Shifts to next skybox every minute
+  timeSinceLastSkybox += dt;
+  if (timeSinceLastSkybox >= 60) {
+    if (currentSkybox === 0) {
+      dayToNight = true;
+    } else if (currentSkybox === 5) {
+      dayToNight = false;
+    }
+    timeSinceLastSkybox = 0;
+    currentSkybox += dayToNight ? 1 : -1;
+    console.log(`Switching to skybox ${currentSkybox}`);
+    loader.setPath(parentDir + `${currentSkybox}/`);
+    let textureCube = loader.load([
+      'left.png', 'right.png', 'top.png', 'bottom.png', 'back.png', 'front.png'
+    ]);
+    scene.background = textureCube;
+  }
 
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
