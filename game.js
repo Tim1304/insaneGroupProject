@@ -9,6 +9,7 @@ import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js"
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
 import { createPlayerStats } from "./placeholders/playerStatsPlaceholder.js";
 import { initUIManager, updateUIManager } from "./systems/ui/uiManager.js";
+import * as Gen from "./env/worldObjects.js";
 
 // --- Renderer setup ---
 const renderer = new T.WebGLRenderer({ antialias: true });
@@ -18,6 +19,13 @@ document.getElementById("div1").appendChild(renderer.domElement);
 
 // --- Scene & camera ---
 const scene = new T.Scene();
+// These are just sample objects for review
+scene.add(new Gen.Birch(new T.Vector3(5, 0, 5), 1));
+scene.add(new Gen.Spruce(new T.Vector3(5, 0, 10), 1.5));
+scene.add(new Gen.Rock(new T.Vector3(10, 0, 5), 2));
+scene.add(new Gen.Well(new T.Vector3(10, 0, 10), 1));
+scene.add(new Gen.Oak(new T.Vector3(0, 0, 5), 1.2));
+
 scene.background = new T.Color(0x202020);
 
 const camera = new T.PerspectiveCamera(
