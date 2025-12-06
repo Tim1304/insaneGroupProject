@@ -115,6 +115,12 @@ let textureCube = loader.load([
 ]);
 scene.background = textureCube;
 
+// Dungeon test
+const dungeon = new Dungeon();
+
+// DISABLE THIS!!!
+//renderer.render(scene, camera);
+
 function animate(time) {
   const dt = (time - lastTime) / 1000 || 0;
   lastTime = time;
@@ -144,13 +150,7 @@ function animate(time) {
     ]);
     scene.background = textureCube;
   }
-
-  // Dungeon test
-  const dungeon = new Dungeon();
-
-  // DISABLE THIS!!!
   renderer.render(dungeon, camera);
-  //renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
 
