@@ -149,8 +149,8 @@ function animate(time) {
   const dungeon = new Dungeon();
 
   // DISABLE THIS!!!
-  // renderer.render(dungeon, camera);
-  renderer.render(scene, camera);
+  renderer.render(dungeon, camera);
+  //renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
 
