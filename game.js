@@ -10,6 +10,7 @@ import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js"
 import { createPlayerStats } from "./placeholders/playerStatsPlaceholder.js";
 import { initUIManager, updateUIManager } from "./systems/ui/uiManager.js";
 import * as Gen from "./env/worldObjects.js";
+import { Dungeon } from "./env/Dungeon.js";
 
 // --- Renderer setup ---
 const renderer = new T.WebGLRenderer({ antialias: true });
@@ -141,6 +142,11 @@ function animate(time) {
     scene.background = textureCube;
   }
 
+  // Dungeon test
+  const dungeon = new Dungeon();
+
+  // DISABLE THIS!!!
+  // renderer.render(dungeon, camera);
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
