@@ -2,11 +2,10 @@
 import * as T from "../CS559-Three/build/three.module.js";
 
 export class Dungeon extends T.Scene {
-    constructor(lenPieces = 20) {
+    constructor(lenPieces = 1) {
         super();
 
         const self = this;
-        let pieceCount = 0;
 
         // Lighting
         const ambientLight = new T.AmbientLight(0xffffff, 0.01);
@@ -15,7 +14,7 @@ export class Dungeon extends T.Scene {
         dirLight.position.set(10, 5, 10);
         dirLight.target.position.set(0, 0, 0);
         this.add(dirLight);
-        //this.add(new T.AxesHelper(5));
+        this.add(new T.AxesHelper(5));
 
         let wallTexture = new T.TextureLoader().load('./env/textures/dungeon-wall.jpg');
         let floorTexture = new T.TextureLoader().load('./env/textures/dirt.jpg');
@@ -29,10 +28,17 @@ export class Dungeon extends T.Scene {
         const conWallGeom = new T.BoxGeometry(0.5, 4, 11.31);
 
         // Coordinates where the next dungeon segment will be created
-        let currentPoint = new T.Vector3(0, 0, 0);
+        let currentX = 0;
+        let currentZ = 0;
         // Direction in which the tunnel is growing
         let forward = true; // sideways if false
         let right = false; // left if false
+
+        // Create first wall with door behind the player
+        let firstWall = new T.Mesh(wallGeom, doorMat);
+        firstWall.position.set(0, 2, -4);
+        firstWall.rotateY(Math.PI / 2);
+        this.add(firstWall);
 
         /**
          * Creates an oppen ended cube tunnel element
@@ -55,7 +61,6 @@ export class Dungeon extends T.Scene {
             }
             self.add(walls);
             walls.position.set(x, 0, z);
-            walls.add(new T.AxesHelper(5));
             // Ceiling
             const ceiling = new T.Mesh(floorGeom, wallMat);
             ceiling.position.set(x, 4, z);
@@ -75,6 +80,8 @@ export class Dungeon extends T.Scene {
                 // Right turn
                 x -= 8;
                 z += 8;
+                currentX = x;
+                currentZ = z;
                 createBox(x, z, false);
                 // Connecting piece
                 conWall.position.set(x + 8, 2, z);
@@ -92,6 +99,8 @@ export class Dungeon extends T.Scene {
                 // Left turn
                 x += 8;
                 z += 8;
+                currentX = x;
+                currentZ = z;
                 createBox(x, z, false);
                 // Connecting piece
                 conWall.position.set(x - 8, 2, z);
@@ -107,6 +116,32 @@ export class Dungeon extends T.Scene {
                 right = false;
             }
         }
-        createJoint(0, 0, false);
+
+        // GENERATE DUNGEON
+        let pieceCount = 0;
+        while (pieceCount < lenPieces) {
+            //console.log(`Creating piece ${pieceCount}`);
+            if (pieceCount !== 0) {
+                if (forward) {
+                    currentZ += 8;
+                } else if (right) {
+                    currentX += 8;
+                } else {
+                    currentX -= 8;
+                }
+            }
+            // 1 in 4 chance to create a joint
+            if (Math.random() < 0.25) {
+                createJoint(currentX, currentZ, Math.random() < 0.5 ? true : false);
+            } else {
+                console.log(`Creating box at ${currentX}, ${currentZ}`);
+                if (forward) {
+                    createBox(currentX, currentZ);
+                } else {
+                    createBox(currentX, currentZ, false);
+                }
+            }
+            pieceCount++;
+        }
     }
 }

@@ -338,3 +338,23 @@ export class Barrel extends T.Group {
         this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
     }
 }
+
+export class DungeonEntrance extends T.Group {
+    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
+        super();
+
+        const loader = new GLTFLoader();
+        let cave;
+        const gltf = loader.load('./env/readyMades/cave.glb', (gltf) => {
+            cave = gltf.scene;
+            cave.position.y += 0.7;
+            cave.scale.set(0.5, 0.7, 0.5);
+            this.add(cave);
+        });
+        this.add(gltf);
+
+        // Place and rescale based on passed params
+        this.position.copy(position);
+        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
+    }
+}
