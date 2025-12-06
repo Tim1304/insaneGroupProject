@@ -10,6 +10,7 @@ const KEY = {
   D: "KeyD",
   DIGIT1: "Digit1", // melee weapon
   DIGIT2: "Digit2", // bow
+  SPACE: "Space",
 };
 
 export function createPlayerController(T, scene, mapInfo) {
@@ -32,6 +33,13 @@ export function createPlayerController(T, scene, mapInfo) {
   const moveSpeed = 6; // units per second
   const eyeHeight = 1.5;
 
+  // --- Vertical jump   
+  let velocityY = 0; // units per second
+  const gravity = 30; 
+  const jumpStrength = 8; // initial jump velocity
+  const groundY = player.position.y; 
+  let isGrounded = true;
+
   // --- Look state (controlled by cameraSystem) ---
   let yaw = 0;   // horizontal angle
   let pitch = 0; // vertical angle
@@ -53,6 +61,12 @@ export function createPlayerController(T, scene, mapInfo) {
     } else if (e.code === KEY.DIGIT2) {
       currentWeapon = "bow";
       player.material.color.set(0x8844cc); // purple-ish for bow
+    } else if (e.code === KEY.SPACE) {
+      // attempt to jump when space pressed
+      if (isGrounded) {
+        velocityY = jumpStrength;
+        isGrounded = false;
+      }
     }
   });
 
@@ -123,6 +137,20 @@ export function createPlayerController(T, scene, mapInfo) {
       velocity.normalize().multiplyScalar(moveSpeed * dt);
       player.position.add(velocity);
       clampToBounds(player.position);
+    }
+  }
+
+  function updateVertical(dt) {
+    // Apply gravity and vertical movement
+    if (!isGrounded || velocityY !== 0) {
+      velocityY -= gravity * dt;
+      player.position.y += velocityY * dt;
+
+      if (player.position.y <= groundY) {
+        player.position.y = groundY;
+        velocityY = 0;
+        isGrounded = true;
+      }
     }
   }
 
@@ -207,6 +235,7 @@ export function createPlayerController(T, scene, mapInfo) {
 
   // --- Public update called from game.js ---
   function update(dt) {
+    updateVertical(dt);
     updateMovement(dt);
     updateArrows(dt);
   }

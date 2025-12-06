@@ -9,6 +9,7 @@ import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js"
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
 import { createPlayerStats } from "./placeholders/playerStatsPlaceholder.js";
 import { initUIManager, updateUIManager } from "./systems/ui/uiManager.js";
+import { initBattleSystem, updateBattleSystem } from "./systems/battleSystem.js";
 
 // --- Renderer setup ---
 const renderer = new T.WebGLRenderer({ antialias: true });
@@ -80,6 +81,7 @@ initNPCSystem(T, scene, playerController);
 initDialogSystem(scene, playerController);
 initCameraSystem(scene, camera, playerController, renderer.domElement);
 initUIManager(renderer.domElement, playerController, playerStats);
+initBattleSystem(scene, playerController);
 
 // --- Resize handling ---
 window.addEventListener("resize", () => {
@@ -101,6 +103,7 @@ function animate(time) {
   updateNPCSystem(dt);
   updateDialogSystem(dt);
   updateCameraSystem(dt);
+  updateBattleSystem(dt);
   updateUIManager(dt);
 
   renderer.render(scene, camera);
