@@ -21,7 +21,7 @@ export function createBasicMap(T, scene) {
   // Simple square “arena” walls for visual feedback
   const wallHeight = 3;
   const wallThickness = 0.5;
-  const arenaSize = 20; // half-extent
+  const arenaSize = 300; // half-extent
 
   const wallMat = new T.MeshStandardMaterial({ color: 0x555555 });
 
