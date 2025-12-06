@@ -10,6 +10,7 @@ const KEY = {
   D: "KeyD",
   DIGIT1: "Digit1", // melee weapon
   DIGIT2: "Digit2", // bow
+  DIGIT3: "Digit3", // hand 
   SPACE: "Space",
 };
 
@@ -40,12 +41,16 @@ export function createPlayerController(T, scene, mapInfo) {
   const groundY = player.position.y; 
   let isGrounded = true;
 
+  // --- Bow aiming / crosshair ---
+  let isAimingBow = false;
+  let crosshairEl = null;
+
   // --- Look state (controlled by cameraSystem) ---
   let yaw = 0;   // horizontal angle
   let pitch = 0; // vertical angle
 
   // --- Weapon state ---
-  let currentWeapon = "sword"; // "sword" | "bow"
+  let currentWeapon = "sword"; // "sword" | "bow" | "hand"
   let arrowMeshes = [];
   const arrowSpeed = 16;
   const arrowLifetime = 2.0; // seconds
@@ -54,14 +59,30 @@ export function createPlayerController(T, scene, mapInfo) {
   document.addEventListener("keydown", (e) => {
     keys.add(e.code);
 
-    // Weapon swap
+    // Immediate attack triggers: Digit1 = fist (hand), Digit2 = sword
     if (e.code === KEY.DIGIT1) {
-      currentWeapon = "sword";
-      player.material.color.set(0x3366ff); // blue-ish for sword
+      meleeAttack("hand");
+      return;
     } else if (e.code === KEY.DIGIT2) {
-      currentWeapon = "bow";
-      player.material.color.set(0x8844cc); // purple-ish for bow
-    } else if (e.code === KEY.SPACE) {
+      meleeAttack("sword");
+      return;
+    }
+
+    // Digit3: toggle bow aiming mode (shows crosshair)
+    if (e.code === KEY.DIGIT3) {
+      if (!isAimingBow) {
+        isAimingBow = true;
+        currentWeapon = "bow";
+        createCrosshair();
+      } else {
+        isAimingBow = false;
+        removeCrosshair();
+      }
+      return;
+    }
+
+    // Space: jump
+    if (e.code === KEY.SPACE) {
       // attempt to jump when space pressed
       if (isGrounded) {
         velocityY = jumpStrength;
@@ -78,6 +99,17 @@ export function createPlayerController(T, scene, mapInfo) {
   document.addEventListener("mousedown", (e) => {
     // left button only, and only when pointer is locked (FPS mode)
     if (e.button !== 0) return;
+
+    // If we're aiming the bow (crosshair visible) allows click to fire
+    if (isAimingBow) {
+      bowAttack();
+      // exit aiming mode after shot
+      isAimingBow = false;
+      removeCrosshair();
+      return;
+    }
+
+    // otherwise require pointer lock for FPS-style attacks
     if (document.pointerLockElement == null) return;
     attack(); // call our internal attack function
   });
@@ -164,16 +196,71 @@ export function createPlayerController(T, scene, mapInfo) {
     }
   }
 
-  function meleeAttack() {
-    // if close enough to the dummy, "hit" it
+  function meleeAttack(weaponOverride) {
+    // Determine which weapon is used
+    const weapon = weaponOverride || currentWeapon;
+
+    // Determine base damage and base range
+    let dmg = 20;
+    let range = 2.5; // base sword range
+    if (weapon === "hand") {
+      dmg = 10;
+      range = 2.5 / 2; // base hand range (half of sword's base)
+    }
+
+    range = range * 2;
+
+    // If close enough to the bandit "hit" it
     const dist = player.position.distanceTo(dummy.position);
-    if (dist < 2.5) {
-      console.log("Melee hit on dummy!");
+    if (dist < range) {
+      console.log(`Melee hit on Bandit! dmg=${dmg} range=${range}`);
       dummy.material.color.set(0xff0000); // flash red
       setTimeout(() => dummy.material.color.set(0x00ff00), 200);
     } else {
-      console.log("Melee swing (no hit)");
+      console.log(`Melee swing (no hit) range=${range}`);
     }
+
+    // Notify other systems (battle system) about the attack so they
+    // can apply damage to NPCs
+    try {
+      window.dispatchEvent(
+        new CustomEvent("player-attack", {
+          detail: {
+            pos: player.position.clone(),
+            range,
+            dmg,
+          },
+        })
+      );
+    } catch (err) {
+      // ignore if dispatch fails
+    }
+  }
+
+  function createCrosshair() {
+    if (crosshairEl) return;
+    crosshairEl = document.createElement("div");
+    crosshairEl.style.position = "fixed";
+    crosshairEl.style.left = "50%";
+    crosshairEl.style.top = "50%";
+    crosshairEl.style.transform = "translate(-50%, -50%)";
+    crosshairEl.style.width = "24px";
+    crosshairEl.style.height = "24px";
+    crosshairEl.style.zIndex = "3000";
+    crosshairEl.style.pointerEvents = "none";
+    crosshairEl.style.display = "flex";
+    crosshairEl.style.alignItems = "center";
+    crosshairEl.style.justifyContent = "center";
+    crosshairEl.style.color = "white";
+    crosshairEl.style.fontSize = "20px";
+    crosshairEl.innerText = "+";
+    document.body.appendChild(crosshairEl);
+  }
+
+  function removeCrosshair() {
+    if (!crosshairEl) return;
+    if (crosshairEl.parentElement) crosshairEl.parentElement.removeChild(crosshairEl);
+    crosshairEl = null;
   }
 
   function bowAttack() {
@@ -198,6 +285,21 @@ export function createPlayerController(T, scene, mapInfo) {
       dir: dir.clone(),
       age: 0,
     });
+
+    //Bow shot/hit event for battle system
+    try {
+      window.dispatchEvent(
+        new CustomEvent("bow-shot", {
+          detail: {
+            pos: eye.clone(),
+            dir: dir.clone(),
+            dmg: 15,
+          },
+        })
+      );
+    } catch (err) {
+      // ignore
+    }
   }
 
   function updateArrows(dt) {
