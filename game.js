@@ -9,7 +9,6 @@ import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js"
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
 import { createPlayerStats } from "./placeholders/playerStatsPlaceholder.js";
 import { initUIManager, updateUIManager } from "./systems/ui/uiManager.js";
-import { initBattleSystem, updateBattleSystem } from "./systems/battleSystem.js";
 
 // --- Renderer setup ---
 const renderer = new T.WebGLRenderer({ antialias: true });
@@ -19,7 +18,14 @@ document.getElementById("div1").appendChild(renderer.domElement);
 
 // --- Scene & camera ---
 const scene = new T.Scene();
-scene.background = new T.Color(0x202020);
+// These are just sample objects for review
+scene.add(new Gen.Birch(new T.Vector3(5, 0, 5), 1));
+scene.add(new Gen.Spruce(new T.Vector3(5, 0, 10), 1.5));
+scene.add(new Gen.Rock(new T.Vector3(10, 0, 5), 2));
+scene.add(new Gen.Well(new T.Vector3(10, 0, 10), 1));
+scene.add(new Gen.Oak(new T.Vector3(0, 0, 10), 1.2));
+scene.add(new Gen.Bush(new T.Vector3(-3, 0, 10), 1.3));
+scene.add(new Gen.Barrel(new T.Vector3(0, 0, 5), 1));
 
 const camera = new T.PerspectiveCamera(
   75,
@@ -94,6 +100,17 @@ window.addEventListener("resize", () => {
 
 // --- Main loop ---
 let lastTime = 0;
+// Switch to determine the direction of the skybox shift
+let dayToNight = true;
+let currentSkybox = 0;
+let timeSinceLastSkybox = 0;
+let parentDir = './env/textures/sky/';
+const loader = new T.CubeTextureLoader();
+loader.setPath(parentDir + `${currentSkybox}/`);
+let textureCube = loader.load([
+  'left.png', 'right.png', 'top.png', 'bottom.png', 'back.png', 'front.png'
+]);
+scene.background = textureCube;
 
 function animate(time) {
   const dt = (time - lastTime) / 1000 || 0;
@@ -106,6 +123,30 @@ function animate(time) {
   updateBattleSystem(dt);
   updateUIManager(dt);
 
+  // Skybox color shift logic
+  // Shifts to next skybox every minute
+  timeSinceLastSkybox += dt;
+  if (timeSinceLastSkybox >= 5) {
+    if (currentSkybox === 0) {
+      dayToNight = true;
+    } else if (currentSkybox === 4) {
+      dayToNight = false;
+    }
+    timeSinceLastSkybox = 0;
+    currentSkybox += dayToNight ? 1 : -1;
+    console.log(`Switching to skybox ${currentSkybox}`);
+    loader.setPath(parentDir + `${currentSkybox}/`);
+    let textureCube = loader.load([
+      'left.png', 'right.png', 'top.png', 'bottom.png', 'back.png', 'front.png'
+    ]);
+    scene.background = textureCube;
+  }
+
+  // Dungeon test
+  const dungeon = new Dungeon();
+
+  // DISABLE THIS!!!
+  // renderer.render(dungeon, camera);
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
