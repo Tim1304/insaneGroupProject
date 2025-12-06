@@ -10,6 +10,7 @@ import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js"
 import { createPlayerStats } from "./placeholders/playerStatsPlaceholder.js";
 import { initUIManager, updateUIManager } from "./systems/ui/uiManager.js";
 import { initBattleSystem, updateBattleSystem } from "./systems/battleSystem.js";
+import { initCollisionSystem, updateCollisionSystem, addStaticCollider } from "./systems/collisionSystem.js";
 import * as Gen from "./env/worldObjects.js";
 import { Dungeon } from "./env/Dungeon.js";
 
@@ -22,14 +23,21 @@ document.getElementById("div1").appendChild(renderer.domElement);
 // --- Scene & camera ---
 const scene = new T.Scene();
 // These are just sample objects for review
-scene.add(new Gen.Birch(new T.Vector3(5, 0, 5), 1));
-scene.add(new Gen.Spruce(new T.Vector3(5, 0, 10), 1.5));
-scene.add(new Gen.Rock(new T.Vector3(10, 0, 5), 2));
-scene.add(new Gen.Well(new T.Vector3(10, 0, 10), 1));
-scene.add(new Gen.Oak(new T.Vector3(0, 0, 10), 1.2));
-scene.add(new Gen.Bush(new T.Vector3(-3, 0, 10), 1.3));
-scene.add(new Gen.Barrel(new T.Vector3(0, 0, 5), 1));
-let dungeonEntrance = new Gen.DungeonEntrance(new T.Vector3(-7, -2.55, 8), 7)
+const birch = new Gen.Birch(new T.Vector3(5, 0, 5), 1);
+scene.add(birch);
+const spruce = new Gen.Spruce(new T.Vector3(5, 0, 10), 1.5);
+scene.add(spruce);
+const rock = new Gen.Rock(new T.Vector3(10, 0, 5), 2);
+scene.add(rock);
+const well = new Gen.Well(new T.Vector3(10, 0, 10), 1);
+scene.add(well);
+const oak = new Gen.Oak(new T.Vector3(0, 0, 10), 1.2);
+scene.add(oak);
+const bush = new Gen.Bush(new T.Vector3(-3, 0, 10), 1.3);
+scene.add(bush);
+const barrel = new Gen.Barrel(new T.Vector3(0, 0, 5), 1);
+scene.add(barrel);
+let dungeonEntrance = new Gen.DungeonEntrance(new T.Vector3(-7, -3, 8), 7);
 dungeonEntrance.rotateY(Math.PI / 1.2);
 scene.add(dungeonEntrance);
 
@@ -94,6 +102,17 @@ initDialogSystem(scene, playerController);
 initCameraSystem(scene, camera, playerController, renderer.domElement);
 initUIManager(renderer.domElement, playerController, playerStats);
 initBattleSystem(scene, playerController);
+initCollisionSystem(T, scene, playerController, mapInfo.walls || []);
+
+// Registers world objects as static colliders so player and arrows can't pass through them
+addStaticCollider(birch);
+addStaticCollider(spruce);
+addStaticCollider(rock);
+addStaticCollider(well);
+addStaticCollider(oak);
+addStaticCollider(bush);
+addStaticCollider(barrel);
+addStaticCollider(dungeonEntrance);
 
 // --- Resize handling ---
 window.addEventListener("resize", () => {
@@ -130,6 +149,7 @@ function animate(time) {
   updateDialogSystem(dt);
   updateCameraSystem(dt);
   updateBattleSystem(dt);
+  updateCollisionSystem(dt);
   updateUIManager(dt);
 
   // Skybox color shift logic
