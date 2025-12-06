@@ -9,6 +9,9 @@ import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js"
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
 import { createPlayerStats } from "./placeholders/playerStatsPlaceholder.js";
 import { initUIManager, updateUIManager } from "./systems/ui/uiManager.js";
+import { initBattleSystem, updateBattleSystem } from "./systems/battleSystem.js";
+import * as Gen from "./env/worldObjects.js";
+import { Dungeon } from "./env/Dungeon.js";
 
 // --- Renderer setup ---
 const renderer = new T.WebGLRenderer({ antialias: true });
