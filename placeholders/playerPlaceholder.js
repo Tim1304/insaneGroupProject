@@ -280,6 +280,11 @@ export function createPlayerController(T, scene, mapInfo) {
 
     scene.add(arrow);
 
+    // Marks the arrow for the collision system
+    arrow.userData = arrow.userData || {};
+    arrow.userData.isPlayerArrow = true;
+    arrow.userData._removed = false;
+
     arrowMeshes.push({
       mesh: arrow,
       dir: dir.clone(),
@@ -308,6 +313,7 @@ export function createPlayerController(T, scene, mapInfo) {
     arrowMeshes.forEach((arrowInfo, idx) => {
       arrowInfo.age += dt;
       if (arrowInfo.age > arrowLifetime) {
+        if (arrowInfo.mesh && arrowInfo.mesh.userData) arrowInfo.mesh.userData._removed = true;
         toRemove.push(idx);
         return;
       }
@@ -322,6 +328,7 @@ export function createPlayerController(T, scene, mapInfo) {
         console.log("Arrow hit dummy!");
         dummy.material.color.set(0xff0000);
         setTimeout(() => dummy.material.color.set(0x00ff00), 200);
+        if (arrowInfo.mesh && arrowInfo.mesh.userData) arrowInfo.mesh.userData._removed = true;
         toRemove.push(idx);
       }
     });
