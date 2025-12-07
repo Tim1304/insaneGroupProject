@@ -1,165 +1,387 @@
 // systems/battleSystem.js
-// Simple battle system: player vs a bandit NPC.
-// - Both start with 100 HP
-// - Player sword deals 20 damage per click
-// - Battle is triggered when dialog with bandit reaches the 'thanks' node
+// Generic battle system using shared attack logic.
+// - Player HP comes from playerStats (createPlayerStats placeholder).
+// - NPC HP is tracked locally per NPC id for now.
+// - Battle starts either:
+//    • when a dialog node has effects.hostile === true
+//    • OR when a hostile NPC hits the player (npc-hostile-attack)
+// - Player & NPC attacks both go through performAttack(attackerId, ...)
 
 import { getNPCs, setNPCHostile } from "./npcSystem.js";
 
+const PLAYER_ID = "player";
+
 let sceneRef = null;
 let playerRef = null;
+let playerStatsRef = null; // <-- hook into createPlayerStats
 
+// Battle state
 let inBattle = false;
-let playerHP = 100;
-let banditHP = 100;
-let banditId = null;
+let engagedEnemies = new Set(); // npcIds in this battle
+let currentTargetId = null;
+
+// Only NPC HP is tracked here.
+// Player HP lives in playerStatsRef.
+const enemyHP = new Map();
+const DEFAULT_ENEMY_HP = 100;
+
+// UI
 let swordButton = null;
 let fistButton = null;
 
-export function initBattleSystem(scene, playerController) {
+// Player hit reaction state
+let playerOriginalColor = null;
+let playerOriginalScale = null;
+let hitEffectTimeout = null;
+
+export function initBattleSystem(scene, playerController, playerStats) {
   sceneRef = scene;
   playerRef = playerController;
+  playerStatsRef = playerStats;
 
-  //Battle Trigger: Right now when dialog box is clicked
-  window.addEventListener("dialog-update", onDialogUpdate);
+  window.addEventListener("dialog-update", onDialogOrHostileStateChanged);
+  // One event handler for both player & NPC attacks:
+  window.addEventListener("npc-hostile-attack", onAttackEvent);
+  window.addEventListener("player-attack", onAttackEvent);
 
-  //Attack Trigger
-  window.addEventListener("player-attack", onPlayerAttack);
-  window.addEventListener("bow-shot", onBowShot);
-
-  console.log("Battle system initialized.");
-}
-
-function onDialogUpdate(e) {
-  try {
-    const detail = e.detail || {};
-    const dialogId = detail.dialogId;
-    const node = detail.node || null;
-    const npcId = detail.npcId || null;
-
-    if (!dialogId || !node) return;
-
-    if (dialogId === "bandit" && node.id === "thanks") {
-      startBattle(npcId);
-    }
-  } catch (err) {
-    console.warn("battleSystem: onDialogUpdate error", err);
-  }
+  console.log("Battle system initialized (uses shared attack logic + playerStats).");
 }
 
 export function updateBattleSystem(dt) {
+  // event-driven for now
 }
 
-function onPlayerAttack(e) {
-  if (!inBattle) return;
+export function isInBattle() {
+  return inBattle;
+}
+
+// Exposed in case you ever want to attack via code: attackEntity("player", {...})
+export function attackEntity(attackerId, options) {
+  performAttack(attackerId, options);
+}
+
+// --------------------------------------------------
+// Dialog → battle trigger (generic via effects.hostile)
+// --------------------------------------------------
+
+function onDialogOrHostileStateChanged(e) {
   const detail = e.detail || {};
-  const pos = detail.pos; 
-  const range = Number(detail.range) || 0;
-  const dmg = Number(detail.dmg) || 0;
+  const npcId = detail.npcId || null;
+  const node = detail.node || null;
 
-  if (!banditId) return;
-  const npc = getNPCs().find((n) => n.id === banditId);
-  if (!npc || !npc.mesh) return;
+  if (!npcId || !node) return;
 
-  try {
-    const dx = npc.mesh.position.x - pos.x;
-    const dy = npc.mesh.position.y - pos.y;
-    const dz = npc.mesh.position.z - pos.z;
+  // Generic: if this node is marked hostile, start a battle
+  if (node.effects && node.effects.hostile) {
+    startBattleWithEnemy(npcId);
+  }
+}
+
+// --------------------------------------------------
+// Unified attack event handler
+// --------------------------------------------------
+
+function onAttackEvent(e) {
+  const detail = e.detail || {};
+
+  if (e.type === "player-attack") {
+    // Player hit attempt (melee, sword, bow, etc.)
+    const dmg = Number(detail.dmg) || 0;
+    const range = Number(detail.range) || 0;
+    performAttack(PLAYER_ID, {
+      damage: dmg,
+      range,
+      attackPos: null,
+    });
+    return;
+  }
+
+  if (e.type === "npc-hostile-attack") {
+    // Enemy hit attempt. NPC AI has already checked range.
+    const attackerId = detail.npcId || null;
+    if (!attackerId) return;
+    const dmg = detail.damage != null ? Number(detail.damage) : 10;
+    const attackPos = detail.position || null;
+
+    performAttack(attackerId, {
+      damage: dmg,
+      range: 0, // range already handled by NPC AI
+      attackPos,
+    });
+  }
+}
+
+// --------------------------------------------------
+// Shared attack logic
+// --------------------------------------------------
+
+function performAttack(attackerId, { damage, range = 0, attackPos = null } = {}) {
+  const dmg = Math.max(0, Number(damage) || 0);
+  if (!dmg) return;
+
+  if (attackerId === PLAYER_ID) {
+    handlePlayerAttack(dmg, range);
+  } else {
+    handleEnemyAttack(attackerId, dmg, attackPos);
+  }
+}
+
+// Player → NPCs
+function handlePlayerAttack(dmg, range) {
+  if (!inBattle || !playerRef || !playerRef.mesh) return;
+  if (engagedEnemies.size === 0) return;
+
+  const npcs = getNPCs();
+  const playerPos = playerRef.mesh.position;
+  const r = Math.max(0, range);
+
+  let bestId = null;
+  let bestDistSq = Infinity;
+
+  for (const enemyId of engagedEnemies) {
+    const npc = npcs.find((n) => n.id === enemyId);
+    if (!npc || !npc.mesh) continue;
+
+    const dx = npc.mesh.position.x - playerPos.x;
+    const dy = npc.mesh.position.y - playerPos.y;
+    const dz = npc.mesh.position.z - playerPos.z;
     const distSq = dx * dx + dy * dy + dz * dz;
-    if (distSq <= range * range) {
-      banditHP -= dmg;
-      console.log(`player-attack hit bandit for ${dmg}. banditHP=${banditHP}`);
-      if (banditHP <= 0) endBattle(true);
+
+    if (distSq <= r * r && distSq < bestDistSq) {
+      bestDistSq = distSq;
+      bestId = enemyId;
     }
-  } catch (err) {
+  }
+
+  if (!bestId) {
+    console.log("Player attack: no engaged enemy in range.");
+    return;
+  }
+
+  const hpBefore = getEnemyHP(bestId);
+  setEnemyHP(bestId, hpBefore - dmg);
+  console.log(`Player hit ${bestId} for ${dmg}. HP ${hpBefore} → ${getEnemyHP(bestId)}`);
+
+  if (getEnemyHP(bestId) <= 0) {
+    // Kill this enemy
+    removeEnemy(bestId);
+
+    // If no enemies left in this battle, player wins
+    if (engagedEnemies.size === 0) {
+      endBattle(true);
+    }
   }
 }
 
-function onBowShot(e) {
+// Enemy → Player
+function handleEnemyAttack(attackerId, dmg, attackPos) {
+  if (!playerRef || !playerRef.mesh || !playerStatsRef) return;
+
+  // If no battle yet, create one with this attacker.
+  if (!inBattle) {
+    startBattleWithEnemy(attackerId);
+  }
+
   if (!inBattle) return;
-  const d = e.detail || {};
-  const pos = d.pos;
-  const dir = d.dir;
-  const dmg = Number(d.dmg) || 0;
+  if (!engagedEnemies.has(attackerId)) return;
 
-  if (!pos || !dir) return;
-  if (!banditId) return;
-
-  const npc = getNPCs().find((n) => n.id === banditId);
-  if (!npc || !npc.mesh) return;
-
-  try {
-    // Vector from shot to NPC
-    const vx = npc.mesh.position.x - pos.x;
-    const vy = npc.mesh.position.y - pos.y;
-    const vz = npc.mesh.position.z - pos.z;
-    const len = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1e-6;
-    const nx = vx / len;
-    const ny = vy / len;
-    const nz = vz / len;
-
-    // Computes dot
-    const dot = dir.x * nx + dir.y * ny + dir.z * nz;
-
-    // Angle threshold
-    const threshold = 0.98; // ~11 degrees
-
-    // Max distance
-    const maxDist = 50;
-
-    if (dot >= threshold && len <= maxDist) {
-      banditHP -= dmg;
-      console.log(`bow-shot hit bandit for ${dmg}. banditHP=${banditHP}`);
-      flashNPC(npc, 0xff0000, 150);
-      if (banditHP <= 0) endBattle(true);
-    } else {
-      console.log(`bow-shot missed (dot=${dot.toFixed(3)} distance=${len.toFixed(2)})`);
-    }
-  } catch (err) {
-    // ignore
+  // Damage goes through playerStats so UI updates automatically
+  if (typeof playerStatsRef.damage === "function") {
+    playerStatsRef.damage(dmg);
+  } else if (typeof playerStatsRef.setHealth === "function"
+          && typeof playerStatsRef.getHealth === "function") {
+    const oldH = playerStatsRef.getHealth();
+    playerStatsRef.setHealth(oldH - dmg);
   }
+
+  const hp = typeof playerStatsRef.getHealth === "function"
+    ? playerStatsRef.getHealth()
+    : 100;
+
+  console.log(`Player took ${dmg} damage from ${attackerId}. Player HP now ${hp}.`);
+
+  // Check defeat
+  if (hp <= 0) {
+    console.log("Player has been defeated.");
+    endBattle(false);
+    return;
+  }
+
+  // Visual feedback
+  applyPlayerHitReaction(attackPos);
 }
 
-function startBattle(npcIdParam) {
-  if (inBattle) return;
+// --------------------------------------------------
+// Battle management
+// --------------------------------------------------
 
+function startBattleWithEnemy(enemyId) {
+  const npc = getNPCs().find((n) => n.id === enemyId);
+  if (!npc) {
+    console.warn("battleSystem: startBattleWithEnemy unknown id", enemyId);
+    return;
+  }
+
+  // If already in battle, just add this enemy if not present
+  if (inBattle) {
+    if (!engagedEnemies.has(enemyId)) {
+      engagedEnemies.add(enemyId);
+      highlightEnemyMesh(enemyId, true);
+    }
+    return;
+  }
+
+  // New battle
   inBattle = true;
-  playerHP = 100;
-  banditHP = 100;
-  banditId = npcIdParam || null;
+  engagedEnemies.clear();
+  engagedEnemies.add(enemyId);
+  currentTargetId = enemyId;
 
-  console.log("Battle started against:", banditId);
+  // Initialize enemy HP if needed
+  if (!enemyHP.has(enemyId)) {
+    enemyHP.set(enemyId, DEFAULT_ENEMY_HP);
+  }
 
-  // Mark the NPC as hostile (so other systems can react later)
-  if (banditId) setNPCHostileSafe(banditId, true);
+  console.log("Battle started against:", enemyId);
+
+  setNPCHostileSafe(enemyId, true);
+  highlightEnemyMesh(enemyId, true);
 
   createSwordButton();
   createFistButton();
-  highlightBanditMesh(true);
 }
 
-function endBattle(won) {
-  console.log("Battle ended. Player won:", !!won);
-  removeSwordButton();
-  highlightBanditMesh(false);
+function endBattle(playerWon) {
+  console.log("Battle ended. Player won:", !!playerWon);
 
-  // If the bandit died, mark talkable=false / remove mesh
-  if (won && banditId) {
-    const npc = getNPCs().find((n) => n.id === banditId);
-    if (npc) {
-      if (npc.mesh && sceneRef) sceneRef.remove(npc.mesh);
-      npc.talkable = false;
-      npc.hostile = false;
+  // Remove highlights
+  for (const enemyId of engagedEnemies) {
+    highlightEnemyMesh(enemyId, false);
+  }
+
+  // Optionally remove dead enemies (when player wins)
+  if (playerWon) {
+    for (const enemyId of engagedEnemies) {
+      if (getEnemyHP(enemyId) <= 0) {
+        removeEnemy(enemyId);
+      }
     }
   }
 
-  // Reset state
+  // Remove UI
+  removeSwordButton();
+  removeFistButton();
+
   inBattle = false;
-  banditId = null;
-  banditHP = 0;
+  engagedEnemies.clear();
+  currentTargetId = null;
 }
 
-// Sword attack button
+// Remove enemy mesh + mark non-hostile/talkable
+function removeEnemy(enemyId) {
+  const npc = getNPCs().find((n) => n.id === enemyId);
+  if (!npc) return;
+
+  if (npc.mesh && sceneRef) {
+    sceneRef.remove(npc.mesh);
+  }
+  npc.hostile = false;
+  npc.talkable = false;
+
+  engagedEnemies.delete(enemyId);
+  enemyHP.delete(enemyId);
+}
+
+// Enemy HP helpers
+function getEnemyHP(id) {
+  return enemyHP.get(id) ?? DEFAULT_ENEMY_HP;
+}
+function setEnemyHP(id, v) {
+  enemyHP.set(id, Math.max(0, v));
+}
+
+// --------------------------------------------------
+// Player hit reaction: knockback + visible hitbox
+// --------------------------------------------------
+
+function applyPlayerHitReaction(attackPos) {
+  if (!playerRef || !playerRef.mesh) return;
+  const mesh = playerRef.mesh;
+  const mat = mesh.material;
+  if (!mat) return;
+
+  // Knockback away from attacker
+  if (attackPos) {
+    const p = mesh.position;
+    let dx = p.x - attackPos.x;
+    let dz = p.z - attackPos.z;
+    let len = Math.sqrt(dx * dx + dz * dz);
+    if (len < 0.0001) {
+      dx = 1;
+      dz = 0;
+      len = 1;
+    }
+    const strength = 1.5;
+    p.x += (dx / len) * strength;
+    p.z += (dz / len) * strength;
+  }
+
+  // Save original once
+  if (playerOriginalColor === null && mat.color) {
+    playerOriginalColor = mat.color.getHex();
+  }
+  if (!playerOriginalScale) {
+    playerOriginalScale = {
+      x: mesh.scale.x,
+      y: mesh.scale.y,
+      z: mesh.scale.z,
+    };
+  }
+
+  // Visible hitbox: bigger, semi-transparent red
+  if (mat.color) {
+    mat.color.set(0xff4444);
+  }
+  mat.transparent = true;
+  mat.opacity = 0.5;
+  mesh.scale.set(
+    playerOriginalScale.x * 1.2,
+    playerOriginalScale.y * 1.2,
+    playerOriginalScale.z * 1.2
+  );
+
+  if (hitEffectTimeout) {
+    clearTimeout(hitEffectTimeout);
+  }
+  hitEffectTimeout = setTimeout(() => {
+    try {
+      if (!playerRef || !playerRef.mesh) return;
+      const m = playerRef.mesh;
+      const mm = m.material;
+      if (!mm) return;
+
+      if (mm.color && playerOriginalColor !== null) {
+        mm.color.set(playerOriginalColor);
+      }
+      if (playerOriginalScale) {
+        m.scale.set(
+          playerOriginalScale.x,
+          playerOriginalScale.y,
+          playerOriginalScale.z
+        );
+      }
+      mm.opacity = 1.0;
+      mm.transparent = false;
+    } catch {
+      // ignore
+    }
+  }, 150);
+}
+
+// --------------------------------------------------
+// UI: Sword / Fist
+// --------------------------------------------------
+
 function createSwordButton() {
   if (swordButton) return;
 
@@ -173,7 +395,9 @@ function createSwordButton() {
   swordButton.style.zIndex = "2000";
   swordButton.style.pointerEvents = "auto";
 
-  swordButton.addEventListener("click", onSwordClick);
+  swordButton.addEventListener("click", () => {
+    performAttack(PLAYER_ID, { damage: 20, range: 5.0 });
+  });
 
   document.body.appendChild(swordButton);
 }
@@ -191,95 +415,41 @@ function createFistButton() {
   fistButton.style.zIndex = "2000";
   fistButton.style.pointerEvents = "auto";
 
-  fistButton.addEventListener("click", onFistClick);
+  fistButton.addEventListener("click", () => {
+    performAttack(PLAYER_ID, { damage: 10, range: 2.5 });
+  });
 
   document.body.appendChild(fistButton);
 }
 
 function removeSwordButton() {
   if (!swordButton) return;
-  swordButton.removeEventListener("click", onSwordClick);
-  if (swordButton.parentElement) swordButton.parentElement.removeChild(swordButton);
+  swordButton.remove();
   swordButton = null;
-  if (fistButton) {
-    fistButton.removeEventListener("click", onFistClick);
-    if (fistButton.parentElement) fistButton.parentElement.removeChild(fistButton);
-    fistButton = null;
-  }
 }
 
-function onSwordClick() {
-  if (!inBattle) return;
-
-  // Sword: 20 damage
-  const dmg = 20;
-  const range = 5.0;
-
-  applyDamageToBanditIfInRange(dmg, range);
+function removeFistButton() {
+  if (!fistButton) return;
+  fistButton.remove();
+  fistButton = null;
 }
 
-function onFistClick() {
-  if (!inBattle) return;
+// --------------------------------------------------
+// Visual helpers for enemies
+// --------------------------------------------------
 
-  // Fist attack: 10 damage 
-  const dmg = 10;
-  const range = 2.5;
-
-  applyDamageToBanditIfInRange(dmg, range);
-}
-
-function applyDamageToBanditIfInRange(dmg, range) {
-  if (!banditId || !playerRef) return;
-  const npc = getNPCs().find((n) => n.id === banditId);
-  if (!npc || !npc.mesh) return;
-
-  try {
-    const px = playerRef.mesh.position.x;
-    const py = playerRef.mesh.position.y;
-    const pz = playerRef.mesh.position.z;
-    const dx = npc.mesh.position.x - px;
-    const dy = npc.mesh.position.y - py;
-    const dz = npc.mesh.position.z - pz;
-    const distSq = dx * dx + dy * dy + dz * dz;
-    if (distSq <= range * range) {
-      banditHP -= dmg;
-      console.log(`Button attack hit bandit for ${dmg}. banditHP=${banditHP}`);
-      flashNPC(npc, 0xff0000, 150);
-      if (banditHP <= 0) endBattle(true);
-    } else {
-      console.log(`Button attack missed (range=${range}).`);
-    }
-  } catch (err) {
-  }
-}
-
-function flashNPC(npc, colorHex, ms) {
+function highlightEnemyMesh(enemyId, on) {
+  const npc = getNPCs().find((n) => n.id === enemyId);
   if (!npc || !npc.mesh || !npc.mesh.material || !npc.mesh.material.color) return;
-  try {
-    const prev = npc.mesh.material.color.getHex();
-    npc.mesh.material.color.set(colorHex);
-    setTimeout(() => {
-      try {
-        npc.mesh.material.color.set(prev);
-      } catch (e) {}
-    }, ms);
-  } catch (e) {}
-}
 
-function highlightBanditMesh(on) {
-  if (!banditId) return;
-  const npc = getNPCs().find((n) => n.id === banditId);
-  if (!npc || !npc.mesh) return;
+  if (!npc._originalColor) {
+    npc._originalColor = npc.mesh.material.color.clone();
+  }
 
-  try {
-    if (on) {
-      if (npc.mesh.material && npc.mesh.material.color)
-        npc.mesh.material.color.set(0xff4444);
-    } else {
-      if (npc.mesh.material && npc.mesh.material.color)
-        npc.mesh.material.color.set(0xaa3333);
-    }
-  } catch (err) {
+  if (on) {
+    npc.mesh.material.color.set(0xff4444);
+  } else if (npc._originalColor) {
+    npc.mesh.material.color.copy(npc._originalColor);
   }
 }
 
@@ -287,9 +457,6 @@ function setNPCHostileSafe(id, hostile) {
   try {
     setNPCHostile(id, hostile);
   } catch (err) {
+    console.warn("battleSystem: setNPCHostileSafe error", err);
   }
-}
-
-export function isInBattle() {
-  return inBattle;
 }

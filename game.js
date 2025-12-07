@@ -101,7 +101,7 @@ initNPCSystem(T, scene, playerController);
 initDialogSystem(scene, playerController);
 initCameraSystem(scene, camera, playerController, renderer.domElement);
 initUIManager(renderer.domElement, playerController, playerStats);
-initBattleSystem(scene, playerController);
+initBattleSystem(scene, playerController, playerStats);
 initCollisionSystem(T, scene, playerController, mapInfo.walls || []);
 
 // Registers world objects as static colliders so player and arrows can't pass through them
