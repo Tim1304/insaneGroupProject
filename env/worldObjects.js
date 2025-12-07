@@ -151,9 +151,11 @@ export class Oak extends T.Group {
         let branch1 = new T.Mesh(branchGeometry, oakMaterial);
         branch1.position.set(-1, 3, 0);
         branch1.rotation.z = Math.PI / 4;
+        branch1.name = "branch1";
         this.add(branch1);
         let branch2 = new T.Mesh(branchGeometry, oakMaterial);
-        branch2.position.set(1, 2.5, 0);
+        branch2.name = "branch2";
+        branch2.position.set(1, 2.5, 0.5);
         branch2.rotation.z = -Math.PI / 4;
         this.add(branch2);
         let branch3 = new T.Mesh(branchGeometry, oakMaterial);
@@ -173,34 +175,70 @@ export class Oak extends T.Group {
         leavesTexture.repeat.set(2, 2);
         let leafGeometry = new T.SphereGeometry(1, 8, 8);
         let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.8 });
-        let leaves = new T.Mesh(leafGeometry, leafMaterial);
-        leaves.scale.set(1.5, 1.2, 1.5);
-        leaves.position.set(0, 4, 0);
-        let leaves2 = leaves.clone();
-        leaves2.scale.set(1.2, 1, 1.2);
-        leaves2.position.set(-1, 3.5, -0.5);
-        let leaves3 = leaves.clone();
-        leaves3.scale.set(1, 0.8, 1);
-        leaves3.position.set(1, 3.8, 0.5);
-        let leaves4 = leaves.clone();
-        leaves4.scale.set(1.3, 1, 1.3);
-        leaves4.position.set(0, 3.6, 1);
-        let leaves5 = leaves.clone();
-        leaves5.scale.set(1.4, 1.1, 1.4);
-        leaves5.position.set(0.8, 3.8, -0.4);
+        let leaves0 = new T.Mesh(leafGeometry, leafMaterial);
+        leaves0.scale.set(1.5, 1.2, 1.5);
+        leaves0.position.set(0, 4, 0);
+        let leaves1 = leaves0.clone();
+        leaves1.scale.set(1.2, 1, 1.2);
+        leaves1.position.set(-1, 3.5, -0.5);
+        let leaves2 = leaves0.clone();
+        leaves2.scale.set(1, 0.8, 1);
+        leaves2.position.set(1, 3.8, 0.5);
+        let leaves3 = leaves0.clone();
+        leaves3.scale.set(1.3, 1, 1.3);
+        leaves3.position.set(0, 3.6, 1);
+        let leaves4 = leaves0.clone();
+        leaves4.scale.set(1.4, 1.1, 1.4);
+        leaves4.position.set(0.8, 3.8, -0.4);
 
-        this.add(leaves);
+        this.add(leaves0);
+        this.add(leaves1);
         this.add(leaves2);
         this.add(leaves3);
         this.add(leaves4);
-        this.add(leaves5);
-
         // Store leaf clusters for animations
-        this.leafClusters = [leaves, leaves2, leaves3, leaves4, leaves5];
+        const leafClusters = [leaves0, leaves1, leaves2, leaves3, leaves4];
+
+        leafClusters.forEach((cluster, i) => {
+            // Name each cluster for animation identification
+            cluster.name = `cluster${i}`;
+        });
+
+        // ANIMATION
+        let clip = function () {
+            let track0 = new T.VectorKeyframeTrack("cluster0.position",
+                [0, 3, 6],
+                [0, 4, 0, 0.17, 3.9, -0.07, 0, 4, 0]);
+            let track1 = new T.VectorKeyframeTrack("cluster1.position",
+                [0, 3, 6],
+                [-1, 3.5, -0.5, -1, 3.6, -0.7, -1, 3.5, -0.5]);
+            let track2 = new T.VectorKeyframeTrack("cluster2.position",
+                [0, 3, 6],
+                [1, 3.2, 0.5, 1, 3.1, 0.27, 1, 3.2, 0.5]);
+            let track3 = new T.VectorKeyframeTrack("cluster3.position",
+                [0, 3, 6],
+                [0, 3.6, 1, 0, 3.7, 0.8, 0, 3.6, 1]);
+            let track4 = new T.VectorKeyframeTrack("cluster4.position",
+                [0, 3, 6],
+                [0.8, 3.8, -0.4, 0.8, 3.8, -0.6, 0.8, 3.8, -0.4]);
+            let track5 = new T.VectorKeyframeTrack("branch2.rotation[x]",
+                [0, 3, 6],
+                [Math.PI / 4, Math.PI / 5.5, Math.PI / 4]);
+            return new T.AnimationClip("sway", -1, [track0, track1, track2, track3, track4, track5]);
+        }
+        let mixer = new T.AnimationMixer(this);
+        let action = mixer.clipAction(clip());
+        action.play();
+
+        this.mixer = mixer;
 
         // Place and rescale based on passed params
         this.position.copy(position);
         this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
+    }
+
+    animateLeaves(dt) {
+        this.mixer.update(dt);
     }
 }
 

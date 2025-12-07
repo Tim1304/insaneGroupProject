@@ -137,6 +137,8 @@ let textureCube = loader.load([
 ]);
 scene.background = textureCube;
 
+scene.add(new T.AxesHelper(5));
+
 // Dungeon test
 const dungeon = new Dungeon();
 
@@ -151,6 +153,9 @@ function animate(time) {
   updateBattleSystem(dt);
   updateCollisionSystem(dt);
   updateUIManager(dt);
+
+  // Ambient animations
+  oak.animateLeaves(dt);
 
   // Skybox color shift logic
   // Shifts to next skybox every minute
@@ -172,8 +177,8 @@ function animate(time) {
   }
 
   // SCENE SELECTION
-  renderer.render(dungeon, camera);
-  //renderer.render(scene, camera);
+  //renderer.render(dungeon, camera);
+  renderer.render(scene, camera);
 
   requestAnimationFrame(animate);
 }
