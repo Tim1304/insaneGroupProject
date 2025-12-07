@@ -353,7 +353,7 @@ export class Bush extends T.Group {
         leavesTexture.wrapT = T.RepeatWrapping;
         leavesTexture.repeat.set(2, 2);
         let leafGeometry = new T.SphereGeometry(0.5, 8, 8);
-        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.6 });
+        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.8 });
         let leaves0 = new T.Mesh(leafGeometry, leafMaterial);
         leaves0.position.set(0, 0.8, 0);
         leaves0.name = "bush_cluster0";

@@ -9,14 +9,70 @@
 export function createBasicMap(T, scene) {
   // Ground
   const groundGeo = new T.PlaneGeometry(100, 100);
+  let groundTexture = new T.TextureLoader().load("./env/textures/grass.jpg");
+  groundTexture.wrapS = T.RepeatWrapping;
+  groundTexture.wrapT = T.RepeatWrapping;
+  groundTexture.repeat.set(20, 20);
   const groundMat = new T.MeshStandardMaterial({
-    color: 0x303030,
+    map: groundTexture,
     side: T.DoubleSide,
   });
   const ground = new T.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0;
   scene.add(ground);
+
+  // ATTRIBUTION: CoPilot with manual edits
+  // Generate grass tufts on the ground
+  const grassCount = 150000;
+  const grassGeometry = new T.BufferGeometry();
+  const grassPositions = [];
+  const grassColors = [];
+
+  for (let i = 0; i < grassCount; i++) {
+    // Random position within ground bounds
+    const x = (Math.random() - 0.5) * 100;
+    const z = (Math.random() - 0.5) * 100;
+    const y = 0;
+
+    // Create a simple grass blade (thin vertical triangle)
+    const bladeHeight = 0.15 + Math.random() * 0.4;
+    const bladeWidth = 0.05;
+
+    // Three vertices for a triangle blade
+    // Random rotation angle for blade orientation
+    const angle = Math.random() * Math.PI * 2;
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+    
+    // Base vertices rotated around Y axis
+    const x1 = -bladeWidth / 2;
+    const x2 = bladeWidth / 2;
+    
+    grassPositions.push(
+      x + x1 * cosA, y, z + x1 * sinA,
+      x + x2 * cosA, y, z + x2 * sinA,
+      x, y + bladeHeight, z
+    );
+
+    // Slight color variation for natural look
+    const greenShade = 0.1 + Math.random() * 0.3;
+    for (let j = 0; j < 3; j++) {
+      grassColors.push(0.2, greenShade, 0.1);
+    }
+  }
+
+  grassGeometry.setAttribute('position', new T.Float32BufferAttribute(grassPositions, 3));
+  grassGeometry.setAttribute('color', new T.Float32BufferAttribute(grassColors, 3));
+
+  const grassMaterial = new T.MeshBasicMaterial({
+    vertexColors: true,
+    side: T.DoubleSide
+  });
+
+  const grassMesh = new T.Mesh(grassGeometry, grassMaterial);
+  scene.add(grassMesh);
+  // END ATTRIBUTION
 
   // Simple square “arena” walls for visual feedback
   const wallHeight = 3;
