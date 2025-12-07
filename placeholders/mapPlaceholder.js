@@ -85,7 +85,8 @@ export function createBasicMap(T, scene) {
     const geo = new T.BoxGeometry(width, wallHeight, depth);
     const mesh = new T.Mesh(geo, wallMat);
     mesh.position.set(x, wallHeight / 2, z);
-    scene.add(mesh);
+    // RESTORE IF NECESSARY
+    //scene.add(mesh);
     return mesh;
   }
 
