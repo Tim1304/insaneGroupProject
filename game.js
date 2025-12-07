@@ -156,6 +156,9 @@ function animate(time) {
 
   // Ambient animations
   oak.animateLeaves(dt);
+  spruce.animateLeaves(dt);
+  birch.animateLeaves(dt);
+  bush.animateLeaves(dt);
 
   // Skybox color shift logic
   // Shifts to next skybox every minute
