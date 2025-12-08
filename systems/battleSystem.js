@@ -90,11 +90,8 @@ function onPlayerAttack(e) {
 }
 
 /**
- * Player bow shot event.
- * We treat this as a hitscan: we take the shot origin + direction + maxDist
- * and see if the ray passes "close enough" to the current enemy.
- *
- * detail: { pos: {x,y,z}, dir: {x,y,z}, dmg: number, maxDist: number }
+ * Player bow shot event (hitscan style).
+ * detail: { pos: {x,y,z}, dir: {x,y,z}, dmg: number }
  */
 function onBowShot(e) {
   if (!inBattle) return;
@@ -102,36 +99,45 @@ function onBowShot(e) {
   const origin = d.pos;
   const dirInput = d.dir;
   const dmg = Number(d.dmg) || 0;
-  const maxDist = Number(d.maxDist) || 0;
 
-  if (!origin || !dirInput || dmg <= 0 || maxDist <= 0) return;
+  if (!origin || !dirInput || dmg <= 0) return;
   if (!enemyId) return;
 
   const npc = getNPCs().find((n) => n.id === enemyId);
   if (!npc || !npc.mesh) return;
 
   try {
+    const enemyPos = npc.mesh.position;
+
     // Vector from origin to enemy
-    const vx = npc.mesh.position.x - origin.x;
-    const vy = npc.mesh.position.y - origin.y;
-    const vz = npc.mesh.position.z - origin.z;
+    const vx = enemyPos.x - origin.x;
+    const vy = enemyPos.y - origin.y;
+    const vz = enemyPos.z - origin.z;
 
     // Normalize shot direction
-    const dLen =
+    const lenDir =
       Math.sqrt(
         dirInput.x * dirInput.x +
           dirInput.y * dirInput.y +
           dirInput.z * dirInput.z
       ) || 1e-6;
-    const dx = dirInput.x / dLen;
-    const dy = dirInput.y / dLen;
-    const dz = dirInput.z / dLen;
+    const dx = dirInput.x / lenDir;
+    const dy = dirInput.y / lenDir;
+    const dz = dirInput.z / lenDir;
 
-    // Projection of v onto dir: how far along the ray the closest point is
+    // Projection length of v onto dir: how far along the ray the closest point is
     const t = vx * dx + vy * dy + vz * dz;
 
-    // If enemy is behind the shot origin or beyond maxDist, it's a miss
-    if (t < 0 || t > maxDist) {
+    // If enemy is behind the shot origin, it's a miss
+    if (t < 0) {
+      // console.log("Bow miss: enemy behind origin");
+      return;
+    }
+
+    // Clamp to a reasonable max range for the bow
+    const MAX_BOW_RANGE = 30;
+    if (t > MAX_BOW_RANGE) {
+      // console.log("Bow miss: enemy too far");
       return;
     }
 
@@ -140,15 +146,17 @@ function onBowShot(e) {
     const cy = origin.y + dy * t;
     const cz = origin.z + dz * t;
 
-    const ddx = npc.mesh.position.x - cx;
-    const ddy = npc.mesh.position.y - cy;
-    const ddz = npc.mesh.position.z - cz;
+    const ddx = enemyPos.x - cx;
+    const ddy = enemyPos.y - cy;
+    const ddz = enemyPos.z - cz;
     const distToRaySq = ddx * ddx + ddy * ddy + ddz * ddz;
 
     // "Hit radius" around enemy center (tune if needed)
     const hitRadius = 1.5;
     if (distToRaySq <= hitRadius * hitRadius) {
       applyDamageToEnemy(dmg, npc);
+    } else {
+      // console.log("Bow miss: ray too far from enemy");
     }
   } catch (err) {
     console.warn("battleSystem: onBowShot error", err);
