@@ -1,7 +1,8 @@
-// systems/collisionSystem.js
-// Collision system 
+// collisionSystem.js
+// Collision system
 // - Prevents player from passing through NPCs and static colliders (walls/trees)
 // - Removes player arrows when they hit NPCs or static colliders
+// - Handles enemy arrows hitting the player, NPCs (block), or static colliders
 
 import { getNPCs } from "./npcSystem.js";
 
@@ -9,6 +10,9 @@ let TRef = null;
 let sceneRef = null;
 let playerRef = null;
 let staticColliders = [];
+
+// Default damage for enemy arrows if not specified on the arrow itself
+const ENEMY_ARROW_DEFAULT_DAMAGE = 8;
 
 export function initCollisionSystem(T, scene, playerController, colliders = []) {
   TRef = T;
@@ -65,7 +69,7 @@ function resolveBoxPenetration(playerMesh, playerBox, objBox) {
   const overlapX = Math.min(pxMax, oxMax) - Math.max(pxMin, oxMin);
   const overlapZ = Math.min(pzMax, ozMax) - Math.max(pzMin, ozMin);
 
-  if (overlapX <= 0 || overlapZ <= 0) return; 
+  if (overlapX <= 0 || overlapZ <= 0) return;
 
   // push out along smaller overlap
   if (overlapX < overlapZ) {
@@ -81,30 +85,38 @@ function resolveBoxPenetration(playerMesh, playerBox, objBox) {
   }
 }
 
-// Arrow collison handler
+// Arrow collision handler
 function handleArrowCollisions() {
-  const arrows = [];
+  const playerArrows = [];
+  const enemyArrows = [];
+
+  // Collect all active arrows
   sceneRef.traverse((obj) => {
-    if (obj.userData && obj.userData.isPlayerArrow && !obj.userData._removed) {
-      arrows.push(obj);
+    if (!obj.userData || obj.userData._removed) return;
+    if (obj.userData.isPlayerArrow) {
+      playerArrows.push(obj);
+    } else if (obj.userData.isEnemyArrow) {
+      enemyArrows.push(obj);
     }
   });
 
-  if (arrows.length === 0) return;
+  const hasPlayerArrows = playerArrows.length > 0;
+  const hasEnemyArrows = enemyArrows.length > 0;
+  if (!hasPlayerArrows && !hasEnemyArrows) return;
 
+  const Box3 = TRef.Box3;
   const npcs = getNPCs();
 
-  for (const arrow of arrows) {
-    // Build a small box around the arrow to check intersection
+  // --- Player arrows: hit NPCs or static colliders; damage logic is handled by battleSystem via "bow-shot" ---
+  for (const arrow of playerArrows) {
     const aPos = arrow.position;
-
-    // Checks the NPCs first
     let removed = false;
+
+    // Check NPCs (so arrows can't pass through them)
     for (const npc of npcs) {
       if (!npc || !npc.mesh) continue;
-      const box = new TRef.Box3().setFromObject(npc.mesh);
+      const box = new Box3().setFromObject(npc.mesh);
       if (box.containsPoint(aPos)) {
-        // Removes the arrow
         removeArrow(arrow);
         removed = true;
         break;
@@ -112,10 +124,10 @@ function handleArrowCollisions() {
     }
     if (removed) continue;
 
-    // Checks the static colliders
+    // Check static colliders (walls/trees/etc.)
     for (const obj of staticColliders) {
       if (!obj) continue;
-      const box = new TRef.Box3().setFromObject(obj);
+      const box = new Box3().setFromObject(obj);
       if (box.containsPoint(aPos)) {
         removeArrow(arrow);
         removed = true;
@@ -123,13 +135,77 @@ function handleArrowCollisions() {
       }
     }
   }
+
+  // --- Enemy arrows: can hit PLAYER, then are blocked by NPCs or static colliders ---
+  if (hasEnemyArrows && playerRef && playerRef.mesh) {
+    const playerBox = new Box3().setFromObject(playerRef.mesh);
+
+    for (const arrow of enemyArrows) {
+      const aPos = arrow.position;
+      let removed = false;
+
+      // 1) Hit player?
+      if (playerBox.containsPoint(aPos)) {
+        const dmg =
+          (arrow.userData && typeof arrow.userData.damage === "number"
+            ? arrow.userData.damage
+            : ENEMY_ARROW_DEFAULT_DAMAGE);
+
+        const sourceNpcId =
+          arrow.userData && arrow.userData.ownerId
+            ? arrow.userData.ownerId
+            : null;
+
+        try {
+          window.dispatchEvent(
+            new CustomEvent("enemy-attack-player", {
+              detail: {
+                npcId: sourceNpcId,
+                dmg,
+              },
+            })
+          );
+        } catch (err) {
+          // ignore
+        }
+
+        removeArrow(arrow);
+        continue;
+      }
+
+      // 2) Blocked by any NPC (including tanks) -> arrow is removed (no damage for now)
+      for (const npc of npcs) {
+        if (!npc || !npc.mesh) continue;
+        const box = new Box3().setFromObject(npc.mesh);
+        if (box.containsPoint(aPos)) {
+          removeArrow(arrow);
+          removed = true;
+          break;
+        }
+      }
+      if (removed) continue;
+
+      // 3) Blocked by static colliders
+      for (const obj of staticColliders) {
+        if (!obj) continue;
+        const box = new Box3().setFromObject(obj);
+        if (box.containsPoint(aPos)) {
+          removeArrow(arrow);
+          removed = true;
+          break;
+        }
+      }
+    }
+  }
 }
 
 function removeArrow(arrow) {
   try {
+    arrow.userData = arrow.userData || {};
     arrow.userData._removed = true;
     if (arrow.parent) arrow.parent.remove(arrow);
   } catch (err) {
+    // ignore
   }
 }
 

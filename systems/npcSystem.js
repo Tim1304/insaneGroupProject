@@ -1,4 +1,6 @@
-// systems/npcSystem.js
+// npcSystem.js
+// NPC management + basic AI for melee / bow / tank monsters.
+// Also handles enemy arrow spawning & movement.
 
 let TRef = null;
 let sceneRef = null;
@@ -12,10 +14,60 @@ let playerRef = null;
  *   mesh: THREE.Mesh,
  *   talkable: boolean,
  *   hostile: boolean,
- *   dialogId?: string
+ *   dialogId?: string,
+ *
+ *   type: "neutral" | "melee" | "bow" | "tank",
+ *   aiState: string,
+ *   aiData: object,
+ *   elite?: boolean,
+ *   team?: string,   // e.g. "bandits"
  * }
  */
+
 const npcs = [];
+
+// --- AI tuning constants ---
+
+// Melee
+const MELEE_CHASE_RANGE = 18.0;
+const MELEE_ATTACK_RANGE = 2.5;
+const MELEE_MOVE_SPEED = 5.0;
+const MELEE_WINDUP_TIME = 0.35;
+const MELEE_RECOVER_TIME = 0.45;
+const MELEE_DAMAGE = 10;
+
+// Tank
+const TANK_CHASE_RANGE = 20.0;
+const TANK_ATTACK_RANGE = 3.0;
+const TANK_MOVE_SPEED = 3.0;
+const TANK_WINDUP_TIME = 0.7;
+const TANK_RECOVER_TIME = 0.8;
+const TANK_DAMAGE = 20;
+
+// Bow (distance band + shooting)
+const BOW_IDEAL_MIN = 10.0;
+const BOW_IDEAL_MAX = 15.0;
+const BOW_TOO_FAR = 20.0;
+const BOW_TOO_CLOSE = 8.0;
+const BOW_DANGER_RANGE = 3.0; // "melee danger" zone
+const BOW_MOVE_SPEED_RUN = 5.0;
+const BOW_MOVE_SPEED_AIM = 2.5;
+const BOW_SHOT_COOLDOWN = 1.2;
+const BOW_ARROW_DAMAGE = 8;
+
+// If archer is within this distance of a tank, it will NOT runToTank anymore.
+const BOW_TANK_SUPPORT_RADIUS = 6.0;
+
+// Enemy arrow flight
+const ENEMY_ARROW_SPEED = 16;
+const ENEMY_ARROW_LIFETIME = 2.5;
+
+// Track all enemy arrows we spawn here
+const enemyArrows = [];
+
+// -------------------------------------------------------
+// Initialization
+// -------------------------------------------------------
 
 export function initNPCSystem(T, scene, playerController) {
   TRef = T;
@@ -32,7 +84,7 @@ function createNPCs() {
 
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
 
-  // Innkeeper – for dialog example
+  // --- Innkeeper – neutral, dialog only ---
   const innMat = new TRef.MeshStandardMaterial({ color: 0xffcc66 });
   const innMesh = new TRef.Mesh(npcGeo, innMat);
   innMesh.position.set(4, 1, 0);
@@ -45,9 +97,13 @@ function createNPCs() {
     talkable: true,
     hostile: false,
     dialogId: "innkeeper",
+    type: "neutral",
+    aiState: "idle",
+    aiData: {},
+    team: null,
   });
 
-  // Bandit – example that can become hostile based on dialog choice later
+  // --- Bandit – melee monster that starts friendly, becomes hostile via dialog ---
   const banditMat = new TRef.MeshStandardMaterial({ color: 0xaa3333 });
   const banditMesh = new TRef.Mesh(npcGeo, banditMat);
   banditMesh.position.set(-6, 1, 3);
@@ -60,15 +116,431 @@ function createNPCs() {
     talkable: true,
     hostile: false,
     dialogId: "bandit",
+    type: "melee",
+    aiState: "idle",
+    aiData: {
+      moveSpeed: MELEE_MOVE_SPEED,
+      meleeDamage: MELEE_DAMAGE,
+      inDesperation: false, // reserved for future elite behavior
+    },
+    elite: false,
+    team: "bandits",
+  });
+
+  // --- Archer – bow monster (same bandit team; starts non-hostile, wakes up with bandit) ---
+  const archerMat = new TRef.MeshStandardMaterial({ color: 0x33aa55 });
+  const archerMesh = new TRef.Mesh(npcGeo, archerMat);
+  archerMesh.position.set(-2, 1, -10);
+  sceneRef.add(archerMesh);
+
+  npcs.push({
+    id: "npc_archer_1",
+    name: "Archer",
+    mesh: archerMesh,
+    talkable: false,
+    hostile: false,
+    dialogId: null,
+    type: "bow",
+    aiState: "aim", // default to aiming/shooting behavior
+    aiData: {
+      moveSpeedRun: BOW_MOVE_SPEED_RUN,
+      moveSpeedAim: BOW_MOVE_SPEED_AIM,
+      shotCooldown: BOW_SHOT_COOLDOWN,
+    },
+    elite: false,
+    team: "bandits",
+  });
+
+  // --- Tank – slow heavy melee (same bandit team; starts non-hostile) ---
+  const tankMat = new TRef.MeshStandardMaterial({ color: 0x555588 });
+  const tankMesh = new TRef.Mesh(npcGeo, tankMat);
+  tankMesh.position.set(-6, 1, -8);
+  sceneRef.add(tankMesh);
+
+  npcs.push({
+    id: "npc_tank_1",
+    name: "Tank",
+    mesh: tankMesh,
+    talkable: false,
+    hostile: false,
+    dialogId: null,
+    type: "tank",
+    aiState: "idle",
+    aiData: {
+      moveSpeed: TANK_MOVE_SPEED,
+      meleeDamage: TANK_DAMAGE,
+    },
+    elite: false,
+    team: "bandits",
   });
 }
 
+// -------------------------------------------------------// Per-frame update
+// -------------------------------------------------------
+
 export function updateNPCSystem(dt) {
-  // For now, no AI movement – purely placeholders.
-  // Later we can add idle animations / patrols here.
+  if (!playerRef || !playerRef.mesh) {
+    updateEnemyArrows(dt);
+    return;
+  }
+
+  const playerPos = playerRef.mesh.position;
+
+  for (const npc of npcs) {
+    if (!npc || !npc.mesh) continue;
+
+    if (!npc.hostile) {
+      npc.aiState = npc.aiState || "idle";
+      continue;
+    }
+
+    const type = npc.type || "neutral";
+    switch (type) {
+      case "melee":
+        updateMeleeAI(npc, dt, playerPos);
+        break;
+      case "bow":
+        updateBowAI(npc, dt, playerPos);
+        break;
+      case "tank":
+        updateTankAI(npc, dt, playerPos);
+        break;
+      default:
+        break;
+    }
+  }
+
+  updateEnemyArrows(dt);
 }
 
-// --- Helpers used by dialogSystem ---
+// -------------------------------------------------------
+// Melee monster AI
+// -------------------------------------------------------
+
+function updateMeleeAI(npc, dt, playerPos) {
+  const data = (npc.aiData = npc.aiData || {});
+  let state = npc.aiState || "idle";
+
+  const pos = npc.mesh.position;
+  const dx = playerPos.x - pos.x;
+  const dz = playerPos.z - pos.z;
+  const distSq = dx * dx + dz * dz;
+
+  const chaseRangeSq = MELEE_CHASE_RANGE * MELEE_CHASE_RANGE;
+  const attackRangeSq = MELEE_ATTACK_RANGE * MELEE_ATTACK_RANGE;
+
+  npc.mesh.rotation.y = Math.atan2(dx, dz);
+
+  switch (state) {
+    case "idle": {
+      if (distSq < chaseRangeSq) state = "chase";
+      break;
+    }
+    case "chase": {
+      if (distSq <= attackRangeSq) {
+        state = "windup";
+        data.attackTimer = MELEE_WINDUP_TIME;
+      } else {
+        moveTowards(npc, playerPos, data.moveSpeed || MELEE_MOVE_SPEED, dt, 1.0);
+      }
+      break;
+    }
+    case "windup": {
+      data.attackTimer = (data.attackTimer || 0) - dt;
+      if (data.attackTimer <= 0) {
+        if (distSq <= attackRangeSq) {
+          const dmg = data.meleeDamage || MELEE_DAMAGE;
+          try {
+            window.dispatchEvent(
+              new CustomEvent("enemy-attack-player", {
+                detail: { npcId: npc.id, dmg },
+              })
+            );
+          } catch (err) {}
+        }
+        state = "recover";
+        data.attackTimer = MELEE_RECOVER_TIME;
+      }
+      break;
+    }
+    case "recover": {
+      data.attackTimer = (data.attackTimer || 0) - dt;
+      if (data.attackTimer <= 0) {
+        state = distSq <= chaseRangeSq ? "chase" : "idle";
+      }
+      break;
+    }
+    default:
+      state = "idle";
+      break;
+  }
+
+  npc.aiState = state;
+}
+
+// -------------------------------------------------------
+// Bow monster AI (fixed distance-keeping + run-to-tank logic)
+// -------------------------------------------------------
+
+function updateBowAI(npc, dt, playerPos) {
+  const data = (npc.aiData = npc.aiData || {});
+  let state = npc.aiState || "aim";
+
+  const pos = npc.mesh.position;
+  const dx = playerPos.x - pos.x;
+  const dz = playerPos.z - pos.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+
+  npc.mesh.rotation.y = Math.atan2(dx, dz);
+
+  if (data.shotCooldown == null) data.shotCooldown = 0;
+  if (data.moveSpeedRun == null) data.moveSpeedRun = BOW_MOVE_SPEED_RUN;
+  if (data.moveSpeedAim == null) data.moveSpeedAim = BOW_MOVE_SPEED_AIM;
+
+  const tooFar = dist > BOW_TOO_FAR;
+  const inIdeal = dist >= BOW_IDEAL_MIN && dist <= BOW_IDEAL_MAX;
+  const closeButNotDanger = dist < BOW_IDEAL_MIN && dist > BOW_DANGER_RANGE;
+  const inDanger = dist <= BOW_DANGER_RANGE;
+
+  const tank = findNearestTank(npc);
+  let tankClose = false;
+  if (tank && tank.mesh) {
+    const tx = tank.mesh.position.x - pos.x;
+    const tz = tank.mesh.position.z - pos.z;
+    const tDistSq = tx * tx + tz * tz;
+    tankClose = tDistSq <= BOW_TANK_SUPPORT_RADIUS * BOW_TANK_SUPPORT_RADIUS;
+  }
+
+  switch (state) {
+    case "runToTank": {
+      // If there's no tank or it's already close enough, stop this behavior.
+      if (!tank || !tank.mesh || tankClose) {
+        state = "aim";
+        break;
+      }
+      const tankPos = tank.mesh.position;
+      moveTowards(npc, tankPos, data.moveSpeedRun, dt, 1.0);
+      break;
+    }
+
+    case "aim":
+    default: {
+      // 1) Super close (danger zone)
+      if (inDanger) {
+        if (tank && tank.mesh && !tankClose) {
+          // Hard run to tank, no shooting.
+          state = "runToTank";
+        } else {
+          // Tank already nearby or non-existent: just sprint away, no shots.
+          moveAwayFrom(npc, playerPos, data.moveSpeedRun, dt);
+        }
+        // No shooting in danger zone.
+        data.shotCooldown = Math.max(data.shotCooldown, 0);
+        break;
+      }
+
+      // 2) Too far: run towards player to get back into band
+      if (tooFar) {
+        moveTowards(npc, playerPos, data.moveSpeedRun, dt, 1.0);
+      }
+      // 3) Close but not melee: back up while shooting (kite)
+      else if (closeButNotDanger) {
+        moveAwayFrom(npc, playerPos, data.moveSpeedAim, dt);
+      }
+      // 4) In ideal range: maybe tiny adjustments or just stand; no extra move needed
+
+      // Shooting: allowed when NOT in danger zone
+      data.shotCooldown -= dt;
+      if (data.shotCooldown <= 0) {
+        spawnEnemyArrow(npc, playerPos);
+        data.shotCooldown = BOW_SHOT_COOLDOWN;
+      }
+
+      break;
+    }
+  }
+
+  npc.aiState = state;
+}
+
+// -------------------------------------------------------
+// Tank monster AI
+// -------------------------------------------------------
+
+function updateTankAI(npc, dt, playerPos) {
+  const data = (npc.aiData = npc.aiData || {});
+  let state = npc.aiState || "idle";
+
+  const pos = npc.mesh.position;
+  const dx = playerPos.x - pos.x;
+  const dz = playerPos.z - pos.z;
+  const distSq = dx * dx + dz * dz;
+
+  const chaseRangeSq = TANK_CHASE_RANGE * TANK_CHASE_RANGE;
+  const attackRangeSq = TANK_ATTACK_RANGE * TANK_ATTACK_RANGE;
+
+  npc.mesh.rotation.y = Math.atan2(dx, dz);
+
+  if (data.moveSpeed == null) data.moveSpeed = TANK_MOVE_SPEED;
+  if (data.meleeDamage == null) data.meleeDamage = TANK_DAMAGE;
+
+  switch (state) {
+    case "idle": {
+      if (distSq < chaseRangeSq) state = "chase";
+      break;
+    }
+    case "chase": {
+      if (distSq <= attackRangeSq) {
+        state = "windup";
+        data.attackTimer = TANK_WINDUP_TIME;
+      } else {
+        moveTowards(npc, playerPos, data.moveSpeed, dt, 1.0);
+      }
+      break;
+    }
+    case "windup": {
+      data.attackTimer = (data.attackTimer || 0) - dt;
+      if (data.attackTimer <= 0) {
+        if (distSq <= attackRangeSq) {
+          const dmg = data.meleeDamage;
+          try {
+            window.dispatchEvent(
+              new CustomEvent("enemy-attack-player", {
+                detail: { npcId: npc.id, dmg },
+              })
+            );
+          } catch (err) {}
+        }
+        state = "recover";
+        data.attackTimer = TANK_RECOVER_TIME;
+      }
+      break;
+    }
+    case "recover": {
+      data.attackTimer = (data.attackTimer || 0) - dt;
+      if (data.attackTimer <= 0) {
+        state = distSq <= chaseRangeSq ? "chase" : "idle";
+      }
+      break;
+    }
+    default:
+      state = "idle";
+      break;
+  }
+
+  npc.aiState = state;
+}
+
+// -------------------------------------------------------
+// Enemy projectile helpers
+// -------------------------------------------------------
+
+function spawnEnemyArrow(npc, playerPos) {
+  if (!TRef || !sceneRef || !playerPos || !npc || !npc.mesh) return;
+
+  const origin = npc.mesh.position.clone();
+  origin.y += 1.3;
+
+  const target = playerPos.clone();
+  target.y += 1.3;
+
+  const dir = target.clone().sub(origin).normalize();
+
+  const arrowGeo = new TRef.BoxGeometry(0.1, 0.1, 0.8);
+  const arrowMat = new TRef.MeshStandardMaterial({ color: 0xffaa00 });
+  const arrow = new TRef.Mesh(arrowGeo, arrowMat);
+
+  const spawnPos = origin.clone().add(dir.clone().multiplyScalar(0.8));
+  arrow.position.copy(spawnPos);
+  arrow.lookAt(spawnPos.clone().add(dir));
+
+  arrow.userData = arrow.userData || {};
+  arrow.userData.isEnemyArrow = true;
+  arrow.userData._removed = false;
+  arrow.userData.ownerId = npc.id;
+  arrow.userData.damage = BOW_ARROW_DAMAGE;
+
+  sceneRef.add(arrow);
+
+  enemyArrows.push({ mesh: arrow, dir: dir.clone(), age: 0 });
+}
+
+function updateEnemyArrows(dt) {
+  if (!TRef || !sceneRef) return;
+  const toRemove = [];
+
+  enemyArrows.forEach((info, idx) => {
+    const mesh = info.mesh;
+    if (!mesh || !mesh.parent || (mesh.userData && mesh.userData._removed)) {
+      toRemove.push(idx);
+      return;
+    }
+
+    info.age += dt;
+    if (info.age > ENEMY_ARROW_LIFETIME) {
+      try {
+        if (mesh.userData) mesh.userData._removed = true;
+        if (mesh.parent) mesh.parent.remove(mesh);
+      } catch (err) {}
+      toRemove.push(idx);
+      return;
+    }
+
+    mesh.position.add(info.dir.clone().multiplyScalar(ENEMY_ARROW_SPEED * dt));
+  });
+
+  for (let i = toRemove.length - 1; i >= 0; i--) {
+    const idx = toRemove[i];
+    enemyArrows.splice(idx, 1);
+  }
+}
+
+// -------------------------------------------------------
+// Shared movement helpers
+// -------------------------------------------------------
+
+function moveTowards(npc, targetPos, speed, dt, directionSign = 1.0) {
+  if (!npc || !npc.mesh || !targetPos) return;
+  const pos = npc.mesh.position;
+  const dx = targetPos.x - pos.x;
+  const dz = targetPos.z - pos.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+  if (dist < 1e-4) return;
+
+  const nx = (dx / dist) * directionSign;
+  const nz = (dz / dist) * directionSign;
+  const step = speed * dt;
+
+  pos.x += nx * step;
+  pos.z += nz * step;
+}
+
+function moveAwayFrom(npc, targetPos, speed, dt) {
+  moveTowards(npc, targetPos, speed, dt, -1.0);
+}
+
+function findNearestTank(excludeNpc) {
+  let best = null;
+  let bestDistSq = Infinity;
+  for (const npc of npcs) {
+    if (!npc || !npc.mesh) continue;
+    if (npc === excludeNpc) continue;
+    if (npc.type !== "tank") continue;
+
+    const dx = npc.mesh.position.x - excludeNpc.mesh.position.x;
+    const dz = npc.mesh.position.z - excludeNpc.mesh.position.z;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < bestDistSq) {
+      bestDistSq = d2;
+      best = npc;
+    }
+  }
+  return best;
+}
+
+// -------------------------------------------------------
+// Public helpers used by other systems
+// -------------------------------------------------------
 
 export function getNPCs() {
   return npcs;
@@ -79,16 +551,19 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
   let bestDistSq = maxDistance * maxDistance;
 
   for (const npc of npcs) {
-    if (!npc.talkable) continue;
+    if (!npc.talkable || !npc.mesh) continue;
+
     const dx = npc.mesh.position.x - playerPosition.x;
     const dy = npc.mesh.position.y - playerPosition.y;
     const dz = npc.mesh.position.z - playerPosition.z;
     const distSq = dx * dx + dy * dy + dz * dz;
-    if (distSq <= bestDistSq) {
-      best = npc;
+
+    if (distSq < bestDistSq) {
       bestDistSq = distSq;
+      best = npc;
     }
   }
+
   return best;
 }
 
@@ -101,6 +576,24 @@ export function setNPCHostile(npcId, hostile) {
 
   if (hostile) {
     console.log(`[NPC SYSTEM] ${npc.name} (${npc.id}) is now hostile!`);
+    npc.aiState = npc.aiState || (npc.type === "bow" ? "aim" : "idle");
+    npc.aiData = npc.aiData || {};
+
+    // TEAM AGGRO
+    if (npc.team) {
+      for (const ally of npcs) {
+        if (!ally || ally === npc) continue;
+        if (ally.team !== npc.team) continue;
+
+        ally.hostile = true;
+        ally.talkable = false;
+        ally.aiState = ally.aiState || (ally.type === "bow" ? "aim" : "idle");
+        ally.aiData = ally.aiData || {};
+        console.log(
+          `[NPC SYSTEM] ${ally.name} (${ally.id}) joined hostility as part of team "${npc.team}".`
+        );
+      }
+    }
   } else {
     console.log(`[NPC SYSTEM] ${npc.name} (${npc.id}) calmed down.`);
   }
