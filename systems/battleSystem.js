@@ -134,7 +134,7 @@ function onBowShot(e) {
       return;
     }
 
-    // Clamp to a reasonable max range for the bow
+    // Clamp to max range for the bow
     const MAX_BOW_RANGE = 30;
     if (t > MAX_BOW_RANGE) {
       // console.log("Bow miss: enemy too far");
