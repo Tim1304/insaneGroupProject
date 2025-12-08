@@ -90,13 +90,22 @@ function createDialogBox() {
 function setupEventListeners() {
     // NPC in range -> show "Press E to talk"
     window.addEventListener("dialog-availability-show", (e) => {
-        if (!promptContainer) return;
-        const { npcName } = e.detail || {};
+    if (!promptContainer) return;
+
+    const { npcName, isDungeonEntrance } = e.detail || {};
+
+    if (isDungeonEntrance) {
+        // Special prompt for dungeon entrance
+        promptContainer.textContent = "Press E to enter the dungeon";
+    } else {
+        // Normal NPC prompt
         promptContainer.textContent = npcName
             ? `Press E to talk to ${npcName}`
             : "Press E to talk";
-        promptContainer.style.display = "block";
-    });
+    }
+
+    promptContainer.style.display = "block";
+});
 
     // NPC not in range -> hide prompt
     window.addEventListener("dialog-availability-hide", () => {

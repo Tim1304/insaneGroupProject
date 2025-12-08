@@ -147,6 +147,19 @@ function tryStartDialog() {
   const npc = getNearestTalkableNPC(playerPos, TALK_RANGE);
   if (!npc) return;
 
+  // Special case: dungeon entrance acts like an interactable, not a dialog NPC
+  if (npc.isDungeonEntrance) {
+    window.dispatchEvent(
+      new CustomEvent("dungeon-enter-request", {
+        detail: {
+          sourceId: npc.id,
+          sourceName: npc.name,
+        },
+      })
+    );
+    return;
+  }
+
   const dialogId = npc.dialogId;
   if (!dialogId || !dialogDefs[dialogId]) {
     console.warn("No dialog defined for NPC:", npc.id, npc.name);
@@ -267,13 +280,14 @@ export function updateDialogSystem(dt) {
   const npc = getNearestTalkableNPC(playerPos, TALK_RANGE);
 
   if (npc && promptNPCId !== npc.id) {
-    // We have a talkable NPC in range; show prompt.
+    // We have a talkable NPC (or entrance) in range; show prompt.
     promptNPCId = npc.id;
     window.dispatchEvent(
       new CustomEvent("dialog-availability-show", {
         detail: {
           npcId: npc.id,
           npcName: npc.name,
+          isDungeonEntrance: !!npc.isDungeonEntrance,
         },
       })
     );

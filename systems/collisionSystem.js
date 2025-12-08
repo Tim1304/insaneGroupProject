@@ -11,6 +11,12 @@ let sceneRef = null;
 let playerRef = null;
 let staticColliders = [];
 
+// turn collision on/off
+export let collisionEnabled = true;
+export function setCollisionEnabled(v) {
+    collisionEnabled = v;
+}
+
 // Default damage for enemy arrows if not specified on the arrow itself
 const ENEMY_ARROW_DEFAULT_DAMAGE = 8;
 
@@ -25,6 +31,8 @@ export function initCollisionSystem(T, scene, playerController, colliders = []) 
 
 export function updateCollisionSystem(dt) {
   if (!TRef || !sceneRef || !playerRef || !playerRef.mesh) return;
+
+  if (!collisionEnabled) return;
 
   try {
     handlePlayerCollisions();

@@ -65,6 +65,8 @@ const ENEMY_ARROW_LIFETIME = 2.5;
 // Track all enemy arrows we spawn here
 const enemyArrows = [];
 
+let dungeonEntranceRef = null;
+
 // -------------------------------------------------------
 // Initialization
 // -------------------------------------------------------
@@ -550,6 +552,7 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
   let best = null;
   let bestDistSq = maxDistance * maxDistance;
 
+  // 1) normal talkable NPCs
   for (const npc of npcs) {
     if (!npc.talkable || !npc.mesh) continue;
 
@@ -561,6 +564,27 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
     if (distSq < bestDistSq) {
       bestDistSq = distSq;
       best = npc;
+    }
+  }
+
+  // 2) dungeon entrance (treated as a "special NPC-like" object)
+  if (dungeonEntranceRef) {
+    const dx = dungeonEntranceRef.position.x - playerPosition.x;
+    const dy = dungeonEntranceRef.position.y - playerPosition.y;
+    const dz = dungeonEntranceRef.position.z - playerPosition.z;
+    const distSq = dx * dx + dy * dy + dz * dz;
+
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      best = {
+        id: "dungeon_entrance",
+        name: "Dungeon Entrance",
+        mesh: dungeonEntranceRef,
+        talkable: true,
+        hostile: false,
+        isDungeonEntrance: true,
+        dialogId: null,
+      };
     }
   }
 
@@ -597,4 +621,8 @@ export function setNPCHostile(npcId, hostile) {
   } else {
     console.log(`[NPC SYSTEM] ${npc.name} (${npc.id}) calmed down.`);
   }
+}
+
+export function registerDungeonEntrance(mesh) {
+  dungeonEntranceRef = mesh;
 }

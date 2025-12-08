@@ -4,15 +4,25 @@ import * as T from "./CS559-Three/build/three.module.js";
 import { createBasicMap } from "./placeholders/mapPlaceholder.js";
 import { createPlayerController } from "./placeholders/playerPlaceholder.js";
 
-import { initNPCSystem, updateNPCSystem } from "./systems/npcSystem.js";
+import {
+  initNPCSystem,
+  updateNPCSystem,
+  registerDungeonEntrance,
+} from "./systems/npcSystem.js";
 import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js";
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
 import { createPlayerStats } from "./placeholders/playerStatsPlaceholder.js";
 import { initUIManager, updateUIManager } from "./systems/ui/uiManager.js";
 import { initBattleSystem, updateBattleSystem } from "./systems/battleSystem.js";
-import { initCollisionSystem, updateCollisionSystem, addStaticCollider } from "./systems/collisionSystem.js";
+import {
+  initCollisionSystem,
+  updateCollisionSystem,
+  addStaticCollider,
+  setCollisionEnabled,
+} from "./systems/collisionSystem.js";
 import * as Gen from "./env/worldObjects.js";
 import { Dungeon } from "./env/Dungeon.js";
+
 
 // --- Renderer setup ---
 const renderer = new T.WebGLRenderer({ antialias: true });
@@ -37,9 +47,12 @@ const bush = new Gen.Bush(new T.Vector3(-3, 0, 10), 1.3);
 scene.add(bush);
 const barrel = new Gen.Barrel(new T.Vector3(0, 0, 5), 1);
 scene.add(barrel);
+
+// create Dungeon & register it with NPC system
 let dungeonEntrance = new Gen.DungeonEntrance(new T.Vector3(-7, -3, 8), 7);
 dungeonEntrance.rotateY(Math.PI / 1.2);
 scene.add(dungeonEntrance);
+registerDungeonEntrance(dungeonEntrance);
 
 const camera = new T.PerspectiveCamera(
   75,
@@ -49,6 +62,10 @@ const camera = new T.PerspectiveCamera(
 );
 camera.position.set(0, 5, 10);
 camera.lookAt(0, 0, 0);
+
+// dugeon setting
+let activeScene = scene;
+let inDungeon = false;
 
 // --- Lights ---
 const ambientLight = new T.AmbientLight(0xffffff, 0.3);
@@ -103,6 +120,8 @@ initCameraSystem(scene, camera, playerController, renderer.domElement);
 initUIManager(renderer.domElement, playerController, playerStats);
 initBattleSystem(scene, playerController, playerStats);
 initCollisionSystem(T, scene, playerController, mapInfo.walls || []);
+// TEMP: disable collision so I can walk into cave
+setCollisionEnabled(false);
 
 // Registers world objects as static colliders so player and arrows can't pass through them
 addStaticCollider(birch);
@@ -141,6 +160,20 @@ scene.add(new T.AxesHelper(5));
 
 // Dungeon test
 const dungeon = new Dungeon();
+window.addEventListener("dungeon-enter-request", () => {
+  // Switch to dungeon scene
+  inDungeon = true;
+  activeScene = dungeon;
+
+  // Teleport player inside dungeon
+  if (playerController && playerController.mesh) {
+    playerController.mesh.position.set(0, 0, 0); // tweak spawn point if needed
+  }
+
+  // Adjust camera
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 0, 0);
+});
 
 function animate(time) {
   const dt = (time - lastTime) / 1000 || 0;
@@ -181,7 +214,7 @@ function animate(time) {
 
   // SCENE SELECTION
   //renderer.render(dungeon, camera);
-  renderer.render(scene, camera);
+  renderer.render(activeScene, camera);
 
   requestAnimationFrame(animate);
 }
