@@ -286,21 +286,16 @@ export function updateDialogSystem(dt) {
   }
 }
 
-// Utility: send only what UI needs (and a minimal effects.hostile flag)
+// Utility: send only what UI needs (no effects/internal fields)
 function stripNodeForUI(node) {
   if (!node) return null;
   return {
     id: node.id,
     text: node.text,
-    choices:
-      node.choices?.map((c) => ({
-        id: c.id,
-        label: c.label,
-      })) ?? [],
+    choices: node.choices?.map((c) => ({
+      id: c.id,
+      label: c.label,
+    })) ?? [],
     end: !!node.end,
-    effects: {
-      hostile: !!(node.effects && node.effects.hostile),
-    },
   };
 }
-

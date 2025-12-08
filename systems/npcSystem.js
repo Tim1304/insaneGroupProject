@@ -17,28 +17,6 @@ let playerRef = null;
  */
 const npcs = [];
 
-// Default hostile AI parameters
-const DEFAULT_HOSTILE_CONFIG = {
-  speed: 3.0,         // movement speed (units / second)
-  chaseRange: 15.0,   // start chasing if within this range
-  attackRange: 1.8,   // can hit the player when this close
-  attackCooldown: 1.2 // seconds between attacks
-};
-
-function ensureHostileState(npc) {
-  if (!npc._ai) {
-    npc._ai = {
-      state: "idle",
-      cooldown: 0,
-      config: { ...DEFAULT_HOSTILE_CONFIG },
-    };
-  }
-  // Save original color for visual feedback when toggling hostile
-  if (!npc._originalColor && npc.mesh && npc.mesh.material && npc.mesh.material.color) {
-    npc._originalColor = npc.mesh.material.color.clone();
-  }
-}
-
 export function initNPCSystem(T, scene, playerController) {
   TRef = T;
   sceneRef = scene;
@@ -86,80 +64,9 @@ function createNPCs() {
 }
 
 export function updateNPCSystem(dt) {
-  if (!playerRef || !playerRef.mesh) return;
-
-  const playerPos = playerRef.mesh.position;
-
-  for (const npc of npcs) {
-    if (!npc.hostile || !npc.mesh) continue;
-
-    ensureHostileState(npc);
-    const ai = npc._ai;
-    const cfg = ai.config;
-
-    // cooldown
-    if (ai.cooldown > 0) {
-      ai.cooldown = Math.max(0, ai.cooldown - dt);
-    }
-
-    const npcPos = npc.mesh.position;
-    const dx = playerPos.x - npcPos.x;
-    const dz = playerPos.z - npcPos.z;
-    const distSq = dx * dx + dz * dz;
-    const dist = Math.sqrt(distSq);
-
-    // too far → idle
-    if (dist > cfg.chaseRange) {
-      ai.state = "idle";
-      continue;
-    }
-
-    // chase if not yet in attack range
-    if (dist > cfg.attackRange) {
-      ai.state = "chase";
-
-      const step = cfg.speed * dt;
-      if (step > 0 && dist > 0.0001) {
-        const factor = step / dist;
-        npcPos.x += dx * factor;
-        npcPos.z += dz * factor;
-      }
-
-      // face the player horizontally
-      npc.mesh.lookAt(playerPos.x, npcPos.y, playerPos.z);
-      continue;
-    }
-
-    // in attack range
-    ai.state = "attack";
-
-    if (ai.cooldown <= 0) {
-      ai.cooldown = cfg.attackCooldown;
-
-      // Tell everyone “I hit the player”
-      try {
-        window.dispatchEvent(
-          new CustomEvent("npc-hostile-attack", {
-            detail: {
-              npcId: npc.id,
-              npcName: npc.name,
-              position: {
-                x: npcPos.x,
-                y: npcPos.y,
-                z: npcPos.z,
-              },
-            },
-          })
-        );
-      } catch (err) {
-        // non-browser, ignore
-      }
-
-      console.log(`[NPC AI] ${npc.name} attacks the player.`);
-    }
-  }
+  // For now, no AI movement – purely placeholders.
+  // Later we can add idle animations / patrols here.
 }
-
 
 // --- Helpers used by dialogSystem ---
 
@@ -193,31 +100,8 @@ export function setNPCHostile(npcId, hostile) {
   npc.talkable = !hostile;
 
   if (hostile) {
-    ensureHostileState(npc);
-
-    // make enemies visibly red
-    if (npc.mesh && npc.mesh.material && npc.mesh.material.color) {
-      if (!npc._originalColor) {
-        npc._originalColor = npc.mesh.material.color.clone();
-      }
-      npc.mesh.material.color.set(0xff0000);
-    }
-
-    npc._ai.state = "idle";
-    npc._ai.cooldown = 0;
-
     console.log(`[NPC SYSTEM] ${npc.name} (${npc.id}) is now hostile!`);
   } else {
-    // restore original color
-    if (npc.mesh && npc.mesh.material && npc.mesh.material.color && npc._originalColor) {
-      npc.mesh.material.color.copy(npc._originalColor);
-    }
-
-    if (npc._ai) {
-      npc._ai.state = "idle";
-      npc._ai.cooldown = 0;
-    }
-
     console.log(`[NPC SYSTEM] ${npc.name} (${npc.id}) calmed down.`);
   }
 }
