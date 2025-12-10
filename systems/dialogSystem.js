@@ -90,6 +90,28 @@ const dialogDefs = {
       intro: {
         id: "intro",
         text: "Here, have some debug gold.",
+        effects: { giveGold: 100 },
+        choices: [
+          { id: "more", label: "Give me more.", next: "extra" }
+        ]
+      },
+      extra: {
+        id: "extra",
+        text: "Okay dang, here’s 500 on top.",
+        effects: { giveGold: 500 },
+        end: true
+      }
+    }
+  },
+
+
+
+  moneyTest: {
+    start: "intro",
+    nodes: {
+      intro: {
+        id: "intro",
+        text: "Here, have some debug gold.",
         choices: [
           { id: "take", label: "Thanks!", next: "done" },
           { id: "takeMore", label: "Give me even more.", next: "doneMore" },
@@ -239,11 +261,6 @@ function setCurrentNode(node, isStart = false) {
     setNPCHostile(activeNPC.id, true);
   }
 
-  // Shop effects (buy weapons)
-  if (currentNode.effects && currentNode.effects.buyWeapon && playerStatsRef) {
-    overrideText = handleBuyWeaponEffect(currentNode.effects, currentNode.text);
-  }
-
   // Give gold effect (used by moneyTest NPC)
   if (currentNode.effects && currentNode.effects.giveGold && playerStatsRef) {
     const amount = Number(currentNode.effects.giveGold) || 0;
@@ -252,6 +269,13 @@ function setCurrentNode(node, isStart = false) {
       console.log(`[DialogSystem] Gave player ${amount} gold from dialog.`);
     }
   }
+
+  // Shop effects (buy weapons)
+  if (currentNode.effects && currentNode.effects.buyWeapon && playerStatsRef) {
+    overrideText = handleBuyWeaponEffect(currentNode.effects, currentNode.text);
+  }
+
+
 
   const uiNode = {
     ...currentNode,

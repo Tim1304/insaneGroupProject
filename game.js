@@ -10,7 +10,9 @@ import {
   updateNPCSystem,
   registerDungeonEntrance,
   registerDungeonExit,
+  registerDungeonScene,
   setInDungeonMode,
+  spawnRandomMonster,
 } from "./systems/npcSystem.js";
 import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js";
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
@@ -69,6 +71,15 @@ camera.lookAt(0, 0, 0);
 // Dungeon / scene state
 let activeScene = scene;
 let inDungeon = false;
+
+let hasSpawnedDungeonMonsters = false;
+
+function spawnInitialDungeonMonsters() {
+  // difficulty = 1 for now, spawns around the player
+  for (let i = 0; i < 3; i++) {
+    spawnRandomMonster(1);
+  }
+}
 
 // --- Lights ---
 const ambientLight = new T.AmbientLight(0xffffff, 0.3);
@@ -139,6 +150,7 @@ scene.add(new T.AxesHelper(5));
 
 // --- Dungeon setup ---
 const dungeon = new Dungeon();
+registerDungeonScene(dungeon);
 
 // Simple dungeon exit object
 const dungeonExitGeo = new T.BoxGeometry(2, 3, 0.5);
@@ -148,7 +160,7 @@ const dungeonExitMat = new T.MeshStandardMaterial({
   opacity: 0.6,
 });
 const dungeonExit = new T.Mesh(dungeonExitGeo, dungeonExitMat);
-dungeonExit.position.set(0, 1.5, -8); // tweak as needed inside Dungeon
+dungeonExit.position.set(0, 1.5, -8);
 dungeon.add(dungeonExit);
 registerDungeonExit(dungeonExit);
 
@@ -159,8 +171,14 @@ window.addEventListener("dungeon-enter-request", () => {
   setInDungeonMode(true);
 
   if (playerController && playerController.mesh) {
-    // Teleport player logically to dungeon location (even if not rendered)
+    // Teleport player logically to dungeon location
     playerController.mesh.position.set(0, 0, 0);
+  }
+
+  // Spawn monsters the first time we enter the dungeon
+  if (!hasSpawnedDungeonMonsters) {
+    spawnInitialDungeonMonsters();
+    hasSpawnedDungeonMonsters = true;
   }
 
   camera.position.set(0, 5, 10);

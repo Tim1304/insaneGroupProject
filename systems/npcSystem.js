@@ -1,9 +1,10 @@
-// systems/npcSystem.js
+// npcSystem.js
 // NPC management + basic AI for melee / bow / tank monsters.
 // Also handles enemy arrow spawning & movement.
 
 let TRef = null;
-let sceneRef = null;
+let overworldSceneRef = null;
+let dungeonSceneRef = null;
 let playerRef = null;
 
 /**
@@ -59,14 +60,13 @@ const BOW_TANK_SUPPORT_RADIUS = 6.0;
 // Enemy arrow
 const ENEMY_ARROW_SPEED = 16;
 const ENEMY_ARROW_LIFETIME = 2.5;
-
 const enemyArrows = [];
 
 let dungeonEntranceRef = null;
 let dungeonExitRef = null;
 let inDungeonMode = false;
 
-// For generated monsters
+// For dynamically generated dungeon monsters
 let nextMonsterId = 1;
 
 // -------------------------------------------------------
@@ -75,7 +75,7 @@ let nextMonsterId = 1;
 
 export function initNPCSystem(T, scene, playerController) {
   TRef = T;
-  sceneRef = scene;
+  overworldSceneRef = scene;
   playerRef = playerController;
 
   createNPCs();
@@ -83,8 +83,19 @@ export function initNPCSystem(T, scene, playerController) {
   console.log("NPC system initialized with", npcs.length, "NPCs.");
 }
 
+/**
+ * Called from game.js after Dungeon is created.
+ */
+export function registerDungeonScene(dungeonScene) {
+  dungeonSceneRef = dungeonScene;
+}
+
+// -------------------------------------------------------
+// Scene setup
+// -------------------------------------------------------
+
 function createNPCs() {
-  if (!TRef || !sceneRef) return;
+  if (!TRef || !overworldSceneRef) return;
 
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
 
@@ -92,7 +103,7 @@ function createNPCs() {
   const innMat = new TRef.MeshStandardMaterial({ color: 0xffcc66 });
   const innMesh = new TRef.Mesh(npcGeo, innMat);
   innMesh.position.set(4, 1, 0);
-  sceneRef.add(innMesh);
+  overworldSceneRef.add(innMesh);
 
   npcs.push({
     id: "npc_innkeeper",
@@ -107,30 +118,31 @@ function createNPCs() {
     team: null,
   });
 
-  // --- Money Test NPC (gives free gold for debugging) ---
-  const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
-  const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
-  moneyMesh.position.set(2, 1, -3); 
-  sceneRef.add(moneyMesh);
+// --- Money Test NPC (Rich Guy) ---
+const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
+const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
+moneyMesh.position.set(2, 1, -3);
 
-  npcs.push({
+overworldSceneRef.add(moneyMesh);
+
+npcs.push({
     id: "npc_money",
     name: "Rich Guy",
     mesh: moneyMesh,
     talkable: true,
     hostile: false,
-    dialogId: "moneyTest",
+    dialogId: "moneyTest",    // MUST match dialogDefs.moneyTest
     type: "neutral",
     aiState: "idle",
     aiData: {},
-  });
-
+    team: null,
+});
 
   // Bandit – melee
   const banditMat = new TRef.MeshStandardMaterial({ color: 0xaa3333 });
   const banditMesh = new TRef.Mesh(npcGeo, banditMat);
   banditMesh.position.set(-6, 1, 3);
-  sceneRef.add(banditMesh);
+  overworldSceneRef.add(banditMesh);
 
   npcs.push({
     id: "npc_bandit",
@@ -154,7 +166,7 @@ function createNPCs() {
   const archerMat = new TRef.MeshStandardMaterial({ color: 0x33aa55 });
   const archerMesh = new TRef.Mesh(npcGeo, archerMat);
   archerMesh.position.set(-2, 1, -10);
-  sceneRef.add(archerMesh);
+  overworldSceneRef.add(archerMesh);
 
   npcs.push({
     id: "npc_archer_1",
@@ -178,7 +190,7 @@ function createNPCs() {
   const tankMat = new TRef.MeshStandardMaterial({ color: 0x555588 });
   const tankMesh = new TRef.Mesh(npcGeo, tankMat);
   tankMesh.position.set(-6, 1, -8);
-  sceneRef.add(tankMesh);
+  overworldSceneRef.add(tankMesh);
 
   npcs.push({
     id: "npc_tank_1",
@@ -203,12 +215,6 @@ function createNPCs() {
 // -------------------------------------------------------
 
 export function updateNPCSystem(dt) {
-  // While in dungeon, we freeze overworld NPC AI (no random damage).
-  if (inDungeonMode) {
-    updateEnemyArrows(dt);
-    return;
-  }
-
   if (!playerRef || !playerRef.mesh) {
     updateEnemyArrows(dt);
     return;
@@ -216,6 +222,8 @@ export function updateNPCSystem(dt) {
 
   const playerPos = playerRef.mesh.position;
 
+  // While in dungeon, we still want AI to run (for dungeon monsters),
+  // but overworld NPCs won't matter since they are on a different scene.
   for (const npc of npcs) {
     if (!npc || !npc.mesh) continue;
 
@@ -458,7 +466,10 @@ function updateTankAI(npc, dt, playerPos) {
 // -------------------------------------------------------
 
 function spawnEnemyArrow(npc, playerPos) {
-  if (!TRef || !sceneRef || !playerPos || !npc || !npc.mesh) return;
+  if (!TRef || (!overworldSceneRef && !dungeonSceneRef) || !playerPos || !npc || !npc.mesh) return;
+
+  const parentScene = inDungeonMode && dungeonSceneRef ? dungeonSceneRef : overworldSceneRef;
+  if (!parentScene) return;
 
   const origin = npc.mesh.position.clone();
   origin.y += 1.3;
@@ -482,13 +493,13 @@ function spawnEnemyArrow(npc, playerPos) {
   arrow.userData.ownerId = npc.id;
   arrow.userData.damage = BOW_ARROW_DAMAGE;
 
-  sceneRef.add(arrow);
+  parentScene.add(arrow);
 
   enemyArrows.push({ mesh: arrow, dir: dir.clone(), age: 0 });
 }
 
 function updateEnemyArrows(dt) {
-  if (!TRef || !sceneRef) return;
+  if (!TRef) return;
   const toRemove = [];
 
   enemyArrows.forEach((info, idx) => {
@@ -518,7 +529,7 @@ function updateEnemyArrows(dt) {
 }
 
 // -------------------------------------------------------
-// Shared movement helpers
+// Movement helpers
 // -------------------------------------------------------
 
 function moveTowards(npc, targetPos, speed, dt, directionSign = 1.0) {
@@ -572,8 +583,8 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
   let best = null;
   let bestDistSq = maxDistance * maxDistance;
 
+  // In dungeon, only the exit is "talkable"
   if (inDungeonMode) {
-    // In dungeon: only EXIT is interactable
     if (dungeonExitRef) {
       const dx = dungeonExitRef.position.x - playerPosition.x;
       const dy = dungeonExitRef.position.y - playerPosition.y;
@@ -597,7 +608,7 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
     return best;
   }
 
-  // Overworld: normal talkable NPCs + dungeon entrance
+  // Overworld: NPCs + dungeon entrance
   for (const npc of npcs) {
     if (!npc.talkable || !npc.mesh) continue;
 
@@ -679,28 +690,45 @@ export function setInDungeonMode(isInDungeon) {
   inDungeonMode = !!isInDungeon;
 }
 
-// Monster generator: spawn a new hostile monster in the overworld
-export function spawnRandomMonster(difficulty = 1) {
-  if (!TRef || !sceneRef) return null;
+export function getInDungeonMode() {
+  return inDungeonMode;
+}
 
+// Monster generator: spawn a new hostile monster in the dungeon.
+// If dungeonSceneRef is missing, falls back to overworld (for safety/testing).
+export function spawnRandomMonster(difficulty = 1) {
+  if (!TRef || (!dungeonSceneRef && !overworldSceneRef)) return null;
+
+  const parentScene = dungeonSceneRef || overworldSceneRef;
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
   const mat = new TRef.MeshStandardMaterial({ color: 0x993333 });
   const mesh = new TRef.Mesh(npcGeo, mat);
 
-  const radius = 12 + Math.random() * 10;
+  // Spawn near player (if we have a player), otherwise around origin.
+  let centerX = 0;
+  let centerZ = 0;
+  if (playerRef && playerRef.mesh) {
+    centerX = playerRef.mesh.position.x;
+    centerZ = playerRef.mesh.position.z;
+  }
+
+  const radius = 6 + Math.random() * 6;
   const angle = Math.random() * Math.PI * 2;
   mesh.position.set(
-    Math.cos(angle) * radius,
+    centerX + Math.cos(angle) * radius,
     1,
-    Math.sin(angle) * radius
+    centerZ + Math.sin(angle) * radius
   );
-  sceneRef.add(mesh);
+  parentScene.add(mesh);
 
   const id = `monster_${nextMonsterId++}`;
 
+  const moveSpeed = MELEE_MOVE_SPEED + 0.3 * (difficulty - 1);
+  const damage = MELEE_DAMAGE + 2 * (difficulty - 1);
+
   const npc = {
     id,
-    name: "Monster",
+    name: "Dungeon Monster",
     mesh,
     talkable: false,
     hostile: true,
@@ -708,14 +736,18 @@ export function spawnRandomMonster(difficulty = 1) {
     type: "melee",
     aiState: "chase",
     aiData: {
-      moveSpeed: MELEE_MOVE_SPEED + 0.3 * (difficulty - 1),
-      meleeDamage: MELEE_DAMAGE + 2 * (difficulty - 1),
+      moveSpeed,
+      meleeDamage: damage,
     },
     elite: difficulty >= 3,
     team: null,
   };
 
   npcs.push(npc);
-  console.log(`[NPC SYSTEM] Spawned monster ${id} with difficulty ${difficulty}.`);
+  console.log(
+    `[NPC SYSTEM] Spawned dungeon monster ${id} (difficulty ${difficulty}, moveSpeed=${moveSpeed.toFixed(
+      2
+    )}, dmg=${damage}).`
+  );
   return npc;
 }

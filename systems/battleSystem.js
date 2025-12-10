@@ -4,7 +4,12 @@
 // - Enemies damage the player via the "enemy-attack-player" event
 // - Battle starts when an NPC becomes hostile (via dialog) and a dialog-update fires
 
-import { getNPCs, setNPCHostile, spawnRandomMonster } from "./npcSystem.js";
+import {
+  getNPCs,
+  setNPCHostile,
+  spawnRandomMonster,
+  getInDungeonMode,
+} from "./npcSystem.js";
 
 let sceneRef = null;
 let playerRef = null;
@@ -64,34 +69,71 @@ function onDialogUpdate(e) {
   }
 }
 
+function findNearestHostileInRange(pos, range) {
+  const npcs = getNPCs();
+  let best = null;
+  let bestDistSq = range * range;
+
+  for (const npc of npcs) {
+    if (!npc || !npc.mesh) continue;
+    if (!npc.hostile) continue;     // only lock onto hostile enemies
+
+    const dx = npc.mesh.position.x - pos.x;
+    const dy = npc.mesh.position.y - pos.y;
+    const dz = npc.mesh.position.z - pos.z;
+    const distSq = dx * dx + dy * dy + dz * dz;
+
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      best = npc;
+    }
+  }
+
+  return best;
+}
+
+
 /**
  * Player melee attack event from placeholder controller.
  * detail: { pos: {x,y,z}, range: number, dmg: number }
  */
 function onPlayerAttack(e) {
-  if (!inBattle) return;
   const d = e.detail || {};
   const pos = d.pos;
   const range = Number(d.range) || 0;
   const dmg = Number(d.dmg) || 0;
+
   if (!pos || range <= 0 || dmg <= 0) return;
+
+  // 1) If we are NOT in battle yet, try to auto-lock a hostile enemy in range.
+  if (!inBattle) {
+    const target = findNearestHostileInRange(pos, range);
+    if (!target) {
+      // swung at air, nothing to hit
+      return;
+    }
+
+    // start a new battle with this enemy
+    startBattle(target.id);
+  }
+
+  // 2) Now we should have enemyId set by startBattle (or already in battle)
   if (!enemyId) return;
 
   const npc = getNPCs().find((n) => n.id === enemyId);
   if (!npc || !npc.mesh) return;
 
-  try {
-    const dx = npc.mesh.position.x - pos.x;
-    const dy = npc.mesh.position.y - pos.y;
-    const dz = npc.mesh.position.z - pos.z;
-    const distSq = dx * dx + dy * dy + dz * dz;
-    if (distSq <= range * range) {
-      applyDamageToEnemy(dmg, npc);
-    }
-  } catch (err) {
-    console.warn("battleSystem: onPlayerAttack error", err);
+  const dx = npc.mesh.position.x - pos.x;
+  const dy = npc.mesh.position.y - pos.y;
+  const dz = npc.mesh.position.z - pos.z;
+  const distSq = dx * dx + dy * dy + dz * dz;
+
+  // 3) If enemy is in melee range, apply damage.
+  if (distSq <= range * range) {
+    applyDamageToEnemy(dmg, npc);
   }
 }
+
 
 /**
  * Player bow shot event (hitscan style).
@@ -199,7 +241,7 @@ function startBattle(npcIdParam) {
     }
   }
 
-  const multiplier = 1 + (difficultyLevel - 1) * 0.5; // +50% HP per difficulty step
+  const multiplier = 1 + (difficultyLevel - 1) * 0.5;
   enemyHP = Math.round(baseHP * multiplier);
 
   enemyId = npcIdParam || null;
@@ -306,9 +348,11 @@ function grantEnemyDefeatRewards(npc) {
     );
   }
 
-  // Monster generator: spawn a new monster for the next fight
+  // Monster generator: ONLY spawn new monsters if we're in the dungeon.
   try {
-    spawnRandomMonster(difficultyLevel);
+    if (typeof getInDungeonMode === "function" && getInDungeonMode()) {
+      spawnRandomMonster(difficultyLevel);
+    }
   } catch (err) {
     console.warn("battleSystem: spawnRandomMonster failed", err);
   }
