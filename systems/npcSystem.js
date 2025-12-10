@@ -222,10 +222,21 @@ export function updateNPCSystem(dt) {
 
   const playerPos = playerRef.mesh.position;
 
-  // While in dungeon, we still want AI to run (for dungeon monsters),
-  // but overworld NPCs won't matter since they are on a different scene.
   for (const npc of npcs) {
     if (!npc || !npc.mesh) continue;
+
+    // Is this NPC part of the dungeon scene?
+    const isDungeonNPC =
+      dungeonSceneRef && npc.mesh.parent === dungeonSceneRef;
+
+    // Only update AI for NPCs in the *current* world.
+    if (inDungeonMode) {
+      // We are inside the dungeon → ignore overworld NPCs
+      if (!isDungeonNPC) continue;
+    } else {
+      // We are in the overworld → ignore dungeon NPCs
+      if (isDungeonNPC) continue;
+    }
 
     if (!npc.hostile) {
       npc.aiState = npc.aiState || "idle";
@@ -694,14 +705,45 @@ export function getInDungeonMode() {
   return inDungeonMode;
 }
 
+/**
+ * Optional helpers for other systems (like the player controller)
+ * to know which scene to attach things to.
+ */
+export function getDungeonSceneRef() {
+  return dungeonSceneRef;
+}
+
+export function getOverworldSceneRef() {
+  return overworldSceneRef;
+}
+
+
 // Monster generator: spawn a new hostile monster in the dungeon.
 // If dungeonSceneRef is missing, falls back to overworld (for safety/testing).
 export function spawnRandomMonster(difficulty = 1) {
   if (!TRef || (!dungeonSceneRef && !overworldSceneRef)) return null;
 
+  // If we have a dungeon scene, always spawn dungeon monsters there.
   const parentScene = dungeonSceneRef || overworldSceneRef;
+
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
-  const mat = new TRef.MeshStandardMaterial({ color: 0x993333 });
+
+  // --- Randomly pick an AI type for this monster ---
+  const roll = Math.random();
+  let type = "melee";
+  if (roll < 0.33) {
+    type = "melee";
+  } else if (roll < 0.66) {
+    type = "bow";
+  } else {
+    type = "tank";
+  }
+
+  let color = 0x993333; // melee = reddish
+  if (type === "bow") color = 0x33aa55;      // archer = green-ish
+  if (type === "tank") color = 0x555588;     // tank = bluish
+
+  const mat = new TRef.MeshStandardMaterial({ color });
   const mesh = new TRef.Mesh(npcGeo, mat);
 
   // Spawn near player (if we have a player), otherwise around origin.
@@ -723,31 +765,55 @@ export function spawnRandomMonster(difficulty = 1) {
 
   const id = `monster_${nextMonsterId++}`;
 
-  const moveSpeed = MELEE_MOVE_SPEED + 0.3 * (difficulty - 1);
-  const damage = MELEE_DAMAGE + 2 * (difficulty - 1);
+  // Base tuning; tweak per-type below.
+  let moveSpeed = MELEE_MOVE_SPEED + 0.3 * (difficulty - 1);
+  let damage = MELEE_DAMAGE + 2 * (difficulty - 1);
+  let aiState = "chase";
+  const aiData = {};
+
+  if (type === "melee") {
+    aiData.moveSpeed = moveSpeed;
+    aiData.meleeDamage = damage;
+  } else if (type === "bow") {
+    aiState = "aim";
+    aiData.moveSpeedRun = BOW_MOVE_SPEED_RUN + 0.2 * (difficulty - 1);
+    aiData.moveSpeedAim = BOW_MOVE_SPEED_AIM;
+    aiData.shotCooldown = Math.max(
+      0.5,
+      BOW_SHOT_COOLDOWN - 0.05 * (difficulty - 1)
+    );
+  } else if (type === "tank") {
+    aiState = "idle";
+    aiData.moveSpeed = TANK_MOVE_SPEED + 0.2 * (difficulty - 1);
+    aiData.meleeDamage = TANK_DAMAGE + 3 * (difficulty - 1);
+    damage = aiData.meleeDamage;
+  }
 
   const npc = {
     id,
-    name: "Dungeon Monster",
+    name:
+      type === "bow"
+        ? "Dungeon Archer"
+        : type === "tank"
+        ? "Dungeon Tank"
+        : "Dungeon Monster",
     mesh,
     talkable: false,
     hostile: true,
     dialogId: null,
-    type: "melee",
-    aiState: "chase",
-    aiData: {
-      moveSpeed,
-      meleeDamage: damage,
-    },
+    type,
+    aiState,
+    aiData,
     elite: difficulty >= 3,
     team: null,
   };
 
   npcs.push(npc);
   console.log(
-    `[NPC SYSTEM] Spawned dungeon monster ${id} (difficulty ${difficulty}, moveSpeed=${moveSpeed.toFixed(
+    `[NPC SYSTEM] Spawned dungeon ${type} ${id} (difficulty ${difficulty}, moveSpeed=${moveSpeed.toFixed(
       2
     )}, dmg=${damage}).`
   );
   return npc;
 }
+

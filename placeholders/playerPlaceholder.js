@@ -2,6 +2,7 @@
 
 // Player controller placeholder for testing camera, dialog, and UI.
 // Aiden will replace internals later, but should keep this API shape.
+import { getInDungeonMode, getDungeonSceneRef } from "../systems/npcSystem.js";
 
 const KEY = {
   W: "KeyW",
@@ -310,7 +311,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     crosshairEl = null;
   }
 
-  function bowAttack() {
+    function bowAttack() {
     const eye = getEyePosition();
     const dir = getForwardDirection();
 
@@ -322,7 +323,25 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     arrow.position.copy(spawnPos);
     arrow.lookAt(spawnPos.clone().add(dir));
 
-    scene.add(arrow);
+    // Put the arrow into the *active* scene:
+    // - overworld when we are outside
+    // - dungeon scene when we are inside
+    let parentScene = scene;
+    try {
+      if (typeof getInDungeonMode === "function" && getInDungeonMode()) {
+        const dungeonScene =
+          typeof getDungeonSceneRef === "function"
+            ? getDungeonSceneRef()
+            : null;
+        if (dungeonScene) {
+          parentScene = dungeonScene;
+        }
+      }
+    } catch (err) {
+      // if anything goes wrong, we just fall back to the overworld scene
+    }
+
+    parentScene.add(arrow);
 
     arrow.userData = arrow.userData || {};
     arrow.userData.isPlayerArrow = true;
@@ -348,6 +367,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       // ignore
     }
   }
+
 
   function updateArrows(dt) {
     const toRemove = [];
