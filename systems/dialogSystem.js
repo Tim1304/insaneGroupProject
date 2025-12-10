@@ -7,6 +7,7 @@ import {
 
 let sceneRef = null;
 let playerRef = null;
+let playerStatsRef = null;
 
 const TALK_RANGE = 4.5;
 
@@ -16,33 +17,32 @@ let currentDialogId = null;
 let currentNode = null;
 let promptNPCId = null;
 
-// Simple sample dialog definitions
-// can expand/replace later.
+// Dialog definitions
 const dialogDefs = {
   innkeeper: {
     start: "greet",
     nodes: {
       greet: {
         id: "greet",
-        text: "Welcome to the inn. Would you like to buy something?",
+        text: "Welcome to the inn. Looking for weapons?",
         choices: [
-          { id: "yes", label: "Yes", next: "chooseItem" },
+          { id: "yes", label: "Show me what you have.", next: "chooseWeapon" },
           { id: "no", label: "No, thanks.", next: "goodbye" },
         ],
       },
-      chooseItem: {
-        id: "chooseItem",
+      chooseWeapon: {
+        id: "chooseWeapon",
         text: "What would you like to buy?",
         choices: [
           {
-            id: "health",
-            label: "Health potion",
-            next: "boughtHealth",
+            id: "buySword",
+            label: "Buy Sword (50 gold)",
+            next: "boughtSword",
           },
           {
-            id: "stamina",
-            label: "Stamina potion",
-            next: "boughtStamina",
+            id: "buyBow",
+            label: "Buy Bow (75 gold)",
+            next: "boughtBow",
           },
           {
             id: "neverMind",
@@ -51,25 +51,67 @@ const dialogDefs = {
           },
         ],
       },
-      boughtHealth: {
-        id: "boughtHealth",
-        text: "You bought a health potion.",
+      boughtSword: {
+        id: "boughtSword",
+        text: "You bought a sword.",
         choices: [
-          { id: "done", label: "Okay.", next: "goodbye" },
+          { id: "more", label: "See items again.", next: "chooseWeapon" },
+          { id: "done", label: "That's all for now.", next: "goodbye" },
         ],
+        effects: {
+          buyWeapon: "sword",
+          cost: 50,
+        },
       },
-      boughtStamina: {
-        id: "boughtStamina",
-        text: "You bought a stamina potion.",
+      boughtBow: {
+        id: "boughtBow",
+        text: "You bought a bow.",
         choices: [
-          { id: "done", label: "Okay.", next: "goodbye" },
+          { id: "more", label: "See items again.", next: "chooseWeapon" },
+          { id: "done", label: "That's all for now.", next: "goodbye" },
         ],
+        effects: {
+          buyWeapon: "bow",
+          cost: 75,
+        },
       },
       goodbye: {
         id: "goodbye",
         text: "Come again soon.",
         choices: [],
         end: true,
+      },
+    },
+  },
+
+  moneyTest: {
+    start: "intro",
+    nodes: {
+      intro: {
+        id: "intro",
+        text: "Here, have some debug gold.",
+        choices: [
+          { id: "take", label: "Thanks!", next: "done" },
+          { id: "takeMore", label: "Give me even more.", next: "doneMore" },
+        ],
+        effects: {
+          giveGold: 100,   // first time: +100
+        },
+      },
+      done: {
+        id: "done",
+        text: "Come back if you need more test gold.",
+        choices: [],
+        end: true,
+      },
+      doneMore: {
+        id: "doneMore",
+        text: "Okay, okay, chill. That’s another 500 gold.",
+        choices: [],
+        end: true,
+        effects: {
+          giveGold: 500,   // second option: +500
+        },
       },
     },
   },
@@ -106,7 +148,6 @@ const dialogDefs = {
         choices: [],
         end: true,
         effects: {
-          // Make this NPC hostile when node is shown
           hostile: true,
         },
       },
@@ -114,11 +155,11 @@ const dialogDefs = {
   },
 };
 
-export function initDialogSystem(scene, playerController) {
+export function initDialogSystem(scene, playerController, playerStats) {
   sceneRef = scene;
   playerRef = playerController;
+  playerStatsRef = playerStats || null;
 
-  // Listen for E key to start / advance dialog
   document.addEventListener("keydown", onKeyDown);
 
   console.log("Dialog system initialized.");
@@ -130,13 +171,9 @@ function onKeyDown(e) {
   if (!inDialog) {
     tryStartDialog();
   } else {
-    // While in dialog, pressing E can be used as a simple "continue"
-    // if there is only one choice.
     if (currentNode && currentNode.choices && currentNode.choices.length === 1) {
       chooseDialogOption(currentNode.choices[0].id);
     }
-    // If there are multiple choices, dialogUI will call chooseDialogOption(...)
-    // based on user selection, so we don't auto-advance here.
   }
 }
 
@@ -147,10 +184,22 @@ function tryStartDialog() {
   const npc = getNearestTalkableNPC(playerPos, TALK_RANGE);
   if (!npc) return;
 
-  // Special case: dungeon entrance acts like an interactable, not a dialog NPC
+  // Dungeon entrance / exit act as special interactables
   if (npc.isDungeonEntrance) {
     window.dispatchEvent(
       new CustomEvent("dungeon-enter-request", {
+        detail: {
+          sourceId: npc.id,
+          sourceName: npc.name,
+        },
+      })
+    );
+    return;
+  }
+
+  if (npc.isDungeonExit) {
+    window.dispatchEvent(
+      new CustomEvent("dungeon-exit-request", {
         detail: {
           sourceId: npc.id,
           sourceName: npc.name,
@@ -176,45 +225,90 @@ function startDialog(npc, dialogId) {
 
   const def = dialogDefs[dialogId];
   const startNode = def.nodes[def.start];
-  setCurrentNode(startNode);
 
-  // Notify UI that a dialog has started
-  window.dispatchEvent(
-    new CustomEvent("dialog-start", {
-      detail: {
-        npcId: npc.id,
-        npcName: npc.name,
-        dialogId,
-        node: stripNodeForUI(startNode),
-      },
-    })
-  );
+  setCurrentNode(startNode, true);
 }
 
-function setCurrentNode(node) {
+function setCurrentNode(node, isStart = false) {
   currentNode = node;
 
-  // Apply node-level effects (e.g., hostility)
+  let overrideText = null;
+
+  // Hostility
   if (currentNode.effects && currentNode.effects.hostile && activeNPC) {
     setNPCHostile(activeNPC.id, true);
   }
 
-  // Inform UI. This fires both at start and on every update.
+  // Shop effects (buy weapons)
+  if (currentNode.effects && currentNode.effects.buyWeapon && playerStatsRef) {
+    overrideText = handleBuyWeaponEffect(currentNode.effects, currentNode.text);
+  }
+
+  // Give gold effect (used by moneyTest NPC)
+  if (currentNode.effects && currentNode.effects.giveGold && playerStatsRef) {
+    const amount = Number(currentNode.effects.giveGold) || 0;
+    if (amount > 0 && typeof playerStatsRef.addGold === "function") {
+      playerStatsRef.addGold(amount);
+      console.log(`[DialogSystem] Gave player ${amount} gold from dialog.`);
+    }
+  }
+
+  const uiNode = {
+    ...currentNode,
+    text: overrideText ?? currentNode.text,
+  };
+
+  const eventName = isStart ? "dialog-start" : "dialog-update";
+
   window.dispatchEvent(
-    new CustomEvent("dialog-update", {
+    new CustomEvent(eventName, {
       detail: {
         npcId: activeNPC?.id || null,
         npcName: activeNPC?.name || null,
         dialogId: currentDialogId,
-        node: stripNodeForUI(currentNode),
+        node: stripNodeForUI(uiNode),
       },
     })
   );
 
-  // If this node is marked as end, close dialog on next update
   if (currentNode.end) {
     endDialog();
   }
+}
+
+function handleBuyWeaponEffect(effects, defaultText) {
+  if (!playerStatsRef) return null;
+
+  const type = effects.buyWeapon;
+  const cost = Number(effects.cost) || 0;
+
+  if (!playerStatsRef.ownsWeapon || !playerStatsRef.buyWeapon) {
+    console.warn("DialogSystem: playerStats missing weapon API");
+    return null;
+  }
+
+  if (playerStatsRef.ownsWeapon(type)) {
+    if (type === "sword") {
+      return "You already own a sword.";
+    } else if (type === "bow") {
+      return "You already own a bow.";
+    }
+    return "You already own that item.";
+  }
+
+  const result = playerStatsRef.buyWeapon(type, cost);
+
+  if (!result.success && result.reason === "notEnoughGold") {
+    return `You don't have enough gold (${cost} required).`;
+  }
+
+  if (result.success) {
+    if (type === "sword") return "You bought a sword.";
+    if (type === "bow") return "You bought a bow.";
+    return "Purchase complete.";
+  }
+
+  return defaultText || "Nothing happened.";
 }
 
 export function chooseDialogOption(choiceId) {
@@ -236,7 +330,7 @@ export function chooseDialogOption(choiceId) {
     return;
   }
 
-  setCurrentNode(nextNode);
+  setCurrentNode(nextNode, false);
 }
 
 function endDialog() {
@@ -265,7 +359,6 @@ function endDialog() {
 export function updateDialogSystem(dt) {
   if (!playerRef || !playerRef.mesh) return;
 
-  // If we are in dialog, we hide the "Press E" prompt.
   if (inDialog) {
     if (promptNPCId !== null) {
       promptNPCId = null;
@@ -280,7 +373,6 @@ export function updateDialogSystem(dt) {
   const npc = getNearestTalkableNPC(playerPos, TALK_RANGE);
 
   if (npc && promptNPCId !== npc.id) {
-    // We have a talkable NPC (or entrance) in range; show prompt.
     promptNPCId = npc.id;
     window.dispatchEvent(
       new CustomEvent("dialog-availability-show", {
@@ -288,11 +380,11 @@ export function updateDialogSystem(dt) {
           npcId: npc.id,
           npcName: npc.name,
           isDungeonEntrance: !!npc.isDungeonEntrance,
+          isDungeonExit: !!npc.isDungeonExit,
         },
       })
     );
   } else if (!npc && promptNPCId !== null) {
-    // No NPC in range anymore; hide prompt.
     promptNPCId = null;
     window.dispatchEvent(
       new CustomEvent("dialog-availability-hide", {})
@@ -300,7 +392,6 @@ export function updateDialogSystem(dt) {
   }
 }
 
-// Utility: send only what UI needs (no effects/internal fields)
 function stripNodeForUI(node) {
   if (!node) return null;
   return {

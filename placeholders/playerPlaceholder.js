@@ -8,13 +8,13 @@ const KEY = {
   A: "KeyA",
   S: "KeyS",
   D: "KeyD",
-  DIGIT1: "Digit1", // melee weapon
-  DIGIT2: "Digit2", // bow
-  DIGIT3: "Digit3", // hand 
+  DIGIT1: "Digit1", // fist (hand)
+  DIGIT2: "Digit2", // sword
+  DIGIT3: "Digit3", // bow / aim
   SPACE: "Space",
 };
 
-export function createPlayerController(T, scene, mapInfo) {
+export function createPlayerController(T, scene, mapInfo, playerStats) {
   // --- Player visual (simple box) ---
   const playerGeo = new T.BoxGeometry(1, 2, 1);
   const playerMat = new T.MeshStandardMaterial({ color: 0x3366ff });
@@ -22,23 +22,25 @@ export function createPlayerController(T, scene, mapInfo) {
   player.position.set(0, 1, 0);
   scene.add(player);
 
-  // Simple "dummy" to hit
+  // Simple "dummy" to hit (for debug)
   const dummyGeo = new T.BoxGeometry(1, 2, 1);
   const dummyMat = new T.MeshStandardMaterial({ color: 0x00ff00 });
   const dummy = new T.Mesh(dummyGeo, dummyMat);
   dummy.position.set(6, 1, 0);
   scene.add(dummy);
 
+  const playerStatsRef = playerStats || null;
+
   // --- Movement state ---
   const keys = new Set();
   const moveSpeed = 6; // units per second
   const eyeHeight = 1.5;
 
-  // --- Vertical jump   
+  // --- Vertical jump
   let velocityY = 0; // units per second
-  const gravity = 30; 
+  const gravity = 30;
   const jumpStrength = 8; // initial jump velocity
-  const groundY = player.position.y; 
+  const groundY = player.position.y;
   let isGrounded = true;
 
   // --- Bow aiming / crosshair ---
@@ -50,7 +52,7 @@ export function createPlayerController(T, scene, mapInfo) {
   let pitch = 0; // vertical angle
 
   // --- Weapon state ---
-  let currentWeapon = "sword"; // "sword" | "bow" | "hand"
+  let currentWeapon = "hand"; // "hand" | "sword" | "bow"
   let arrowMeshes = [];
   const arrowSpeed = 16;
   const arrowLifetime = 2.0; // seconds
@@ -59,20 +61,36 @@ export function createPlayerController(T, scene, mapInfo) {
   document.addEventListener("keydown", (e) => {
     keys.add(e.code);
 
-    // Immediate attack triggers: Digit1 = fist (hand), Digit2 = sword
+    // Weapon switching:
     if (e.code === KEY.DIGIT1) {
-      meleeAttack("hand");
-      return;
-    } else if (e.code === KEY.DIGIT2) {
-      meleeAttack("sword");
+      // fists are always available
+      setCurrentWeapon("hand");
       return;
     }
 
-    // Digit3: toggle bow aiming mode (shows crosshair)
+    if (e.code === KEY.DIGIT2) {
+      if (playerStatsRef && typeof playerStatsRef.ownsWeapon === "function") {
+        if (!playerStatsRef.ownsWeapon("sword")) {
+          console.log("[Player] You don't own a sword yet.");
+          return;
+        }
+      }
+      setCurrentWeapon("sword");
+      return;
+    }
+
     if (e.code === KEY.DIGIT3) {
+      // Bow only if owned
+      if (playerStatsRef && typeof playerStatsRef.ownsWeapon === "function") {
+        if (!playerStatsRef.ownsWeapon("bow")) {
+          console.log("[Player] You don't own a bow yet.");
+          return;
+        }
+      }
+      // toggle aim mode with bow equipped
+      setCurrentWeapon("bow");
       if (!isAimingBow) {
         isAimingBow = true;
-        currentWeapon = "bow";
         createCrosshair();
       } else {
         isAimingBow = false;
@@ -83,7 +101,6 @@ export function createPlayerController(T, scene, mapInfo) {
 
     // Space: jump
     if (e.code === KEY.SPACE) {
-      // attempt to jump when space pressed
       if (isGrounded) {
         velocityY = jumpStrength;
         isGrounded = false;
@@ -95,13 +112,44 @@ export function createPlayerController(T, scene, mapInfo) {
     keys.delete(e.code);
   });
 
+  // --- Listen to inventory / external weapon changes ---
+  window.addEventListener("player-weapon-changed", (e) => {
+    const detail = e.detail || {};
+    const w = detail.equipped;
+    if (!w) return;
+    // When external system (inventory) changes weapon, follow it.
+    setCurrentWeapon(w);
+  });
+
+  function setCurrentWeapon(type) {
+    if (type !== "hand" && type !== "sword" && type !== "bow") return;
+
+    currentWeapon = type;
+
+    if (currentWeapon !== "bow") {
+      // only bow uses our crosshair/aim state
+      isAimingBow = false;
+      removeCrosshair();
+    }
+
+    if (playerStatsRef && typeof playerStatsRef.getEquippedWeapon === "function") {
+      const statsWeapon = playerStatsRef.getEquippedWeapon();
+      if (statsWeapon !== type && typeof playerStatsRef.equipWeapon === "function") {
+        // sync stats with controller
+        playerStatsRef.equipWeapon(type);
+      }
+    }
+
+    console.log("[Player] Equipped weapon:", currentWeapon);
+  }
+
   // --- Input listener (mouse attack) ---
   document.addEventListener("mousedown", (e) => {
-    // left button only, and only when pointer is locked (FPS mode)
+    // left button only
     if (e.button !== 0) return;
 
     // If we're aiming the bow (crosshair visible) allows click to fire
-    if (isAimingBow) {
+    if (isAimingBow && currentWeapon === "bow") {
       bowAttack();
       // exit aiming mode after shot
       isAimingBow = false;
@@ -173,7 +221,6 @@ export function createPlayerController(T, scene, mapInfo) {
   }
 
   function updateVertical(dt) {
-    // Apply gravity and vertical movement
     if (!isGrounded || velocityY !== 0) {
       velocityY -= gravity * dt;
       player.position.y += velocityY * dt;
@@ -186,42 +233,42 @@ export function createPlayerController(T, scene, mapInfo) {
     }
   }
 
-  // --- Attack logic (placeholder) ---
+  // --- Attack logic ---
 
   function attack() {
     if (currentWeapon === "sword") {
-      meleeAttack();
+      meleeAttack("sword");
     } else if (currentWeapon === "bow") {
       bowAttack();
+    } else {
+      // fists
+      meleeAttack("hand");
     }
   }
 
   function meleeAttack(weaponOverride) {
-    // Determine which weapon is used
     const weapon = weaponOverride || currentWeapon;
 
-    // Determine base damage and base range
+    // base stats
     let dmg = 20;
-    let range = 2.5; // base sword range
+    let range = 2.5; // sword base
+
     if (weapon === "hand") {
       dmg = 10;
-      range = 2.5 / 2; // base hand range (half of sword's base)
+      range = 2.5 / 2; // shorter reach
     }
 
-    range = range * 2;
+    range = range * 2; // fudge factor
 
-    // If close enough to the bandit "hit" it
     const dist = player.position.distanceTo(dummy.position);
     if (dist < range) {
-      console.log(`Melee hit on Bandit! dmg=${dmg} range=${range}`);
+      console.log(`Melee hit on dummy! dmg=${dmg} range=${range}`);
       dummy.material.color.set(0xff0000); // flash red
       setTimeout(() => dummy.material.color.set(0x00ff00), 200);
     } else {
       console.log(`Melee swing (no hit) range=${range}`);
     }
 
-    // Notify other systems (battle system) about the attack so they
-    // can apply damage to NPCs
     try {
       window.dispatchEvent(
         new CustomEvent("player-attack", {
@@ -271,16 +318,12 @@ export function createPlayerController(T, scene, mapInfo) {
     const arrowMat = new T.MeshStandardMaterial({ color: 0xffff00 });
     const arrow = new T.Mesh(arrowGeo, arrowMat);
 
-    // Spawn a little in front of the eye
     const spawnPos = eye.clone().add(dir.clone().multiplyScalar(0.8));
     arrow.position.copy(spawnPos);
-
-    // Orient arrow roughly along direction
     arrow.lookAt(spawnPos.clone().add(dir));
 
     scene.add(arrow);
 
-    // Marks the arrow for the collision system
     arrow.userData = arrow.userData || {};
     arrow.userData.isPlayerArrow = true;
     arrow.userData._removed = false;
@@ -291,7 +334,6 @@ export function createPlayerController(T, scene, mapInfo) {
       age: 0,
     });
 
-    //Bow shot/hit event for battle system
     try {
       window.dispatchEvent(
         new CustomEvent("bow-shot", {
@@ -322,7 +364,6 @@ export function createPlayerController(T, scene, mapInfo) {
         arrowInfo.dir.clone().multiplyScalar(arrowSpeed * dt)
       );
 
-      // simple hit test vs dummy
       const dist = arrowInfo.mesh.position.distanceTo(dummy.position);
       if (dist < 1.2) {
         console.log("Arrow hit dummy!");
@@ -333,7 +374,6 @@ export function createPlayerController(T, scene, mapInfo) {
       }
     });
 
-    // remove in reverse order
     for (let i = toRemove.length - 1; i >= 0; i--) {
       const idx = toRemove[i];
       const a = arrowMeshes[idx];

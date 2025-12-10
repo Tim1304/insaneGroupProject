@@ -4,7 +4,7 @@
 // - Enemies damage the player via the "enemy-attack-player" event
 // - Battle starts when an NPC becomes hostile (via dialog) and a dialog-update fires
 
-import { getNPCs, setNPCHostile } from "./npcSystem.js";
+import { getNPCs, setNPCHostile, spawnRandomMonster } from "./npcSystem.js";
 
 let sceneRef = null;
 let playerRef = null;
@@ -16,6 +16,10 @@ let enemyHP = 100;
 let enemyId = null;
 let swordButton = null;
 let fistButton = null;
+
+// Difficulty scaling
+let difficultyLevel = 1;
+let enemiesDefeated = 0;
 
 /**
  * Initialize the battle system.
@@ -109,12 +113,10 @@ function onBowShot(e) {
   try {
     const enemyPos = npc.mesh.position;
 
-    // Vector from origin to enemy
     const vx = enemyPos.x - origin.x;
     const vy = enemyPos.y - origin.y;
     const vz = enemyPos.z - origin.z;
 
-    // Normalize shot direction
     const lenDir =
       Math.sqrt(
         dirInput.x * dirInput.x +
@@ -125,23 +127,13 @@ function onBowShot(e) {
     const dy = dirInput.y / lenDir;
     const dz = dirInput.z / lenDir;
 
-    // Projection length of v onto dir: how far along the ray the closest point is
     const t = vx * dx + vy * dy + vz * dz;
 
-    // If enemy is behind the shot origin, it's a miss
-    if (t < 0) {
-      // console.log("Bow miss: enemy behind origin");
-      return;
-    }
+    if (t < 0) return;
 
-    // Clamp to max range for the bow
     const MAX_BOW_RANGE = 30;
-    if (t > MAX_BOW_RANGE) {
-      // console.log("Bow miss: enemy too far");
-      return;
-    }
+    if (t > MAX_BOW_RANGE) return;
 
-    // Closest point on the ray to the enemy
     const cx = origin.x + dx * t;
     const cy = origin.y + dy * t;
     const cz = origin.z + dz * t;
@@ -151,12 +143,9 @@ function onBowShot(e) {
     const ddz = enemyPos.z - cz;
     const distToRaySq = ddx * ddx + ddy * ddy + ddz * ddz;
 
-    // "Hit radius" around enemy center (tune if needed)
     const hitRadius = 1.5;
     if (distToRaySq <= hitRadius * hitRadius) {
       applyDamageToEnemy(dmg, npc);
-    } else {
-      // console.log("Bow miss: ray too far from enemy");
     }
   } catch (err) {
     console.warn("battleSystem: onBowShot error", err);
@@ -190,10 +179,34 @@ function startBattle(npcIdParam) {
     playerHP = 100;
   }
 
-  enemyHP = 100; // placeholder, until per-NPC stats exist
+  // Scale enemy HP based on type + difficulty
+  let baseHP = 100;
+  const npc = npcIdParam ? getNPCs().find((n) => n.id === npcIdParam) : null;
+  if (npc) {
+    switch (npc.type) {
+      case "melee":
+        baseHP = 80;
+        break;
+      case "bow":
+        baseHP = 70;
+        break;
+      case "tank":
+        baseHP = 120;
+        break;
+      default:
+        baseHP = 100;
+        break;
+    }
+  }
+
+  const multiplier = 1 + (difficultyLevel - 1) * 0.5; // +50% HP per difficulty step
+  enemyHP = Math.round(baseHP * multiplier);
+
   enemyId = npcIdParam || null;
 
-  console.log("Battle started against:", enemyId);
+  console.log(
+    `Battle started against: ${enemyId} (baseHP=${baseHP}, difficulty=${difficultyLevel}, enemyHP=${enemyHP})`
+  );
 
   if (enemyId) setNPCHostileSafe(enemyId, true);
 
@@ -207,17 +220,25 @@ function startBattle(npcIdParam) {
  */
 function endBattle(won) {
   console.log("Battle ended. Player won:", !!won);
+
+  let npc = null;
+  if (enemyId) {
+    npc = getNPCs().find((n) => n.id === enemyId) || null;
+  }
+
+  // Rewards + difficulty scaling + monster generator
+  if (won && npc) {
+    grantEnemyDefeatRewards(npc);
+  }
+
   removeSwordButton();
   removeFistButton();
   highlightEnemyMesh(false);
 
-  if (won && enemyId) {
-    const npc = getNPCs().find((n) => n.id === enemyId);
-    if (npc) {
-      if (npc.mesh && sceneRef) sceneRef.remove(npc.mesh);
-      npc.talkable = false;
-      npc.hostile = false;
-    }
+  if (won && npc) {
+    if (npc.mesh && sceneRef) sceneRef.remove(npc.mesh);
+    npc.talkable = false;
+    npc.hostile = false;
   }
 
   inBattle = false;
@@ -225,7 +246,7 @@ function endBattle(won) {
   enemyHP = 0;
 }
 
-// --- shared enemy damage helper ---
+// --- enemy damage & rewards ---
 
 function applyDamageToEnemy(dmg, npc) {
   enemyHP -= dmg;
@@ -234,6 +255,67 @@ function applyDamageToEnemy(dmg, npc) {
   if (enemyHP <= 0) {
     endBattle(true);
   }
+}
+
+function grantEnemyDefeatRewards(npc) {
+  if (!playerStatsRef) return;
+
+  const type = npc.type || "melee";
+
+  let goldMin = 5;
+  let goldMax = 10;
+  let scoreGain = 10;
+
+  switch (type) {
+    case "melee":
+      goldMin = 5;
+      goldMax = 10;
+      scoreGain = 10;
+      break;
+    case "bow":
+      goldMin = 8;
+      goldMax = 14;
+      scoreGain = 12;
+      break;
+    case "tank":
+      goldMin = 10;
+      goldMax = 18;
+      scoreGain = 15;
+      break;
+    default:
+      break;
+  }
+
+  const goldBase = goldMin + Math.random() * (goldMax - goldMin);
+  const goldMultiplier = 1 + (difficultyLevel - 1) * 0.25;
+  const goldDrop = Math.round(goldBase * goldMultiplier);
+
+  if (typeof playerStatsRef.addGold === "function") {
+    playerStatsRef.addGold(goldDrop);
+  }
+  if (typeof playerStatsRef.addScore === "function") {
+    playerStatsRef.addScore(scoreGain);
+  }
+
+  enemiesDefeated += 1;
+
+  if (enemiesDefeated > 0 && enemiesDefeated % 3 === 0) {
+    difficultyLevel += 1;
+    console.log(
+      `[BattleSystem] Difficulty increased to ${difficultyLevel} after ${enemiesDefeated} kills.`
+    );
+  }
+
+  // Monster generator: spawn a new monster for the next fight
+  try {
+    spawnRandomMonster(difficultyLevel);
+  } catch (err) {
+    console.warn("battleSystem: spawnRandomMonster failed", err);
+  }
+
+  console.log(
+    `[BattleSystem] Rewards: +${goldDrop} gold, +${scoreGain} score (difficulty ${difficultyLevel})`
+  );
 }
 
 // --- UI Buttons for player melee attacks (debug) ---
@@ -367,12 +449,6 @@ function highlightEnemyMesh(on) {
 
 // --- Player HP handling ---
 
-/**
- * Apply damage to the player, synced with the shared playerStats object.
- *
- * @param {number} amount - Raw damage amount (positive).
- * @param {string} [sourceNpcId] - Optional id of the NPC causing damage.
- */
 export function playerTakeDamage(amount, sourceNpcId) {
   const dmg = Math.max(0, Number(amount) || 0);
   if (dmg <= 0) return;
@@ -401,7 +477,7 @@ export function playerTakeDamage(amount, sourceNpcId) {
 
   if (playerHP <= 0) {
     endBattle(false);
-    // TODO: hook into a proper "player dead / respawn" system once available.
+    // TODO: proper death/respawn system
   }
 }
 

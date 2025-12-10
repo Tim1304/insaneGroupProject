@@ -1,4 +1,4 @@
-// npcSystem.js
+// systems/npcSystem.js
 // NPC management + basic AI for melee / bow / tank monsters.
 // Also handles enemy arrow spawning & movement.
 
@@ -20,7 +20,7 @@ let playerRef = null;
  *   aiState: string,
  *   aiData: object,
  *   elite?: boolean,
- *   team?: string,   // e.g. "bandits"
+ *   team?: string,
  * }
  */
 
@@ -49,23 +49,25 @@ const BOW_IDEAL_MIN = 10.0;
 const BOW_IDEAL_MAX = 15.0;
 const BOW_TOO_FAR = 20.0;
 const BOW_TOO_CLOSE = 8.0;
-const BOW_DANGER_RANGE = 3.0; // "melee danger" zone
+const BOW_DANGER_RANGE = 3.0;
 const BOW_MOVE_SPEED_RUN = 5.0;
 const BOW_MOVE_SPEED_AIM = 2.5;
 const BOW_SHOT_COOLDOWN = 1.2;
 const BOW_ARROW_DAMAGE = 8;
-
-// If archer is within this distance of a tank, it will NOT runToTank anymore.
 const BOW_TANK_SUPPORT_RADIUS = 6.0;
 
-// Enemy arrow flight
+// Enemy arrow
 const ENEMY_ARROW_SPEED = 16;
 const ENEMY_ARROW_LIFETIME = 2.5;
 
-// Track all enemy arrows we spawn here
 const enemyArrows = [];
 
 let dungeonEntranceRef = null;
+let dungeonExitRef = null;
+let inDungeonMode = false;
+
+// For generated monsters
+let nextMonsterId = 1;
 
 // -------------------------------------------------------
 // Initialization
@@ -86,7 +88,7 @@ function createNPCs() {
 
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
 
-  // --- Innkeeper – neutral, dialog only ---
+  // Innkeeper – neutral, dialog only
   const innMat = new TRef.MeshStandardMaterial({ color: 0xffcc66 });
   const innMesh = new TRef.Mesh(npcGeo, innMat);
   innMesh.position.set(4, 1, 0);
@@ -105,7 +107,26 @@ function createNPCs() {
     team: null,
   });
 
-  // --- Bandit – melee monster that starts friendly, becomes hostile via dialog ---
+  // --- Money Test NPC (gives free gold for debugging) ---
+  const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
+  const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
+  moneyMesh.position.set(2, 1, -3); 
+  sceneRef.add(moneyMesh);
+
+  npcs.push({
+    id: "npc_money",
+    name: "Rich Guy",
+    mesh: moneyMesh,
+    talkable: true,
+    hostile: false,
+    dialogId: "moneyTest",
+    type: "neutral",
+    aiState: "idle",
+    aiData: {},
+  });
+
+
+  // Bandit – melee
   const banditMat = new TRef.MeshStandardMaterial({ color: 0xaa3333 });
   const banditMesh = new TRef.Mesh(npcGeo, banditMat);
   banditMesh.position.set(-6, 1, 3);
@@ -123,13 +144,13 @@ function createNPCs() {
     aiData: {
       moveSpeed: MELEE_MOVE_SPEED,
       meleeDamage: MELEE_DAMAGE,
-      inDesperation: false, // reserved for future elite behavior
+      inDesperation: false,
     },
     elite: false,
     team: "bandits",
   });
 
-  // --- Archer – bow monster (same bandit team; starts non-hostile, wakes up with bandit) ---
+  // Archer
   const archerMat = new TRef.MeshStandardMaterial({ color: 0x33aa55 });
   const archerMesh = new TRef.Mesh(npcGeo, archerMat);
   archerMesh.position.set(-2, 1, -10);
@@ -143,7 +164,7 @@ function createNPCs() {
     hostile: false,
     dialogId: null,
     type: "bow",
-    aiState: "aim", // default to aiming/shooting behavior
+    aiState: "aim",
     aiData: {
       moveSpeedRun: BOW_MOVE_SPEED_RUN,
       moveSpeedAim: BOW_MOVE_SPEED_AIM,
@@ -153,7 +174,7 @@ function createNPCs() {
     team: "bandits",
   });
 
-  // --- Tank – slow heavy melee (same bandit team; starts non-hostile) ---
+  // Tank
   const tankMat = new TRef.MeshStandardMaterial({ color: 0x555588 });
   const tankMesh = new TRef.Mesh(npcGeo, tankMat);
   tankMesh.position.set(-6, 1, -8);
@@ -177,10 +198,17 @@ function createNPCs() {
   });
 }
 
-// -------------------------------------------------------// Per-frame update
+// -------------------------------------------------------
+// Per-frame update
 // -------------------------------------------------------
 
 export function updateNPCSystem(dt) {
+  // While in dungeon, we freeze overworld NPC AI (no random damage).
+  if (inDungeonMode) {
+    updateEnemyArrows(dt);
+    return;
+  }
+
   if (!playerRef || !playerRef.mesh) {
     updateEnemyArrows(dt);
     return;
@@ -258,7 +286,7 @@ function updateMeleeAI(npc, dt, playerPos) {
                 detail: { npcId: npc.id, dmg },
               })
             );
-          } catch (err) {}
+          } catch (err) { }
         }
         state = "recover";
         data.attackTimer = MELEE_RECOVER_TIME;
@@ -281,7 +309,7 @@ function updateMeleeAI(npc, dt, playerPos) {
 }
 
 // -------------------------------------------------------
-// Bow monster AI (fixed distance-keeping + run-to-tank logic)
+// Bow monster AI
 // -------------------------------------------------------
 
 function updateBowAI(npc, dt, playerPos) {
@@ -315,7 +343,6 @@ function updateBowAI(npc, dt, playerPos) {
 
   switch (state) {
     case "runToTank": {
-      // If there's no tank or it's already close enough, stop this behavior.
       if (!tank || !tank.mesh || tankClose) {
         state = "aim";
         break;
@@ -327,31 +354,24 @@ function updateBowAI(npc, dt, playerPos) {
 
     case "aim":
     default: {
-      // 1) Super close (danger zone)
       if (inDanger) {
         if (tank && tank.mesh && !tankClose) {
-          // Hard run to tank, no shooting.
           state = "runToTank";
         } else {
-          // Tank already nearby or non-existent: just sprint away, no shots.
           moveAwayFrom(npc, playerPos, data.moveSpeedRun, dt);
         }
-        // No shooting in danger zone.
         data.shotCooldown = Math.max(data.shotCooldown, 0);
         break;
       }
 
-      // 2) Too far: run towards player to get back into band
       if (tooFar) {
         moveTowards(npc, playerPos, data.moveSpeedRun, dt, 1.0);
-      }
-      // 3) Close but not melee: back up while shooting (kite)
-      else if (closeButNotDanger) {
+      } else if (closeButNotDanger) {
         moveAwayFrom(npc, playerPos, data.moveSpeedAim, dt);
+      } else if (inIdeal) {
+        // sit and shoot
       }
-      // 4) In ideal range: maybe tiny adjustments or just stand; no extra move needed
 
-      // Shooting: allowed when NOT in danger zone
       data.shotCooldown -= dt;
       if (data.shotCooldown <= 0) {
         spawnEnemyArrow(npc, playerPos);
@@ -411,7 +431,7 @@ function updateTankAI(npc, dt, playerPos) {
                 detail: { npcId: npc.id, dmg },
               })
             );
-          } catch (err) {}
+          } catch (err) { }
         }
         state = "recover";
         data.attackTimer = TANK_RECOVER_TIME;
@@ -483,7 +503,7 @@ function updateEnemyArrows(dt) {
       try {
         if (mesh.userData) mesh.userData._removed = true;
         if (mesh.parent) mesh.parent.remove(mesh);
-      } catch (err) {}
+      } catch (err) { }
       toRemove.push(idx);
       return;
     }
@@ -552,7 +572,32 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
   let best = null;
   let bestDistSq = maxDistance * maxDistance;
 
-  // 1) normal talkable NPCs
+  if (inDungeonMode) {
+    // In dungeon: only EXIT is interactable
+    if (dungeonExitRef) {
+      const dx = dungeonExitRef.position.x - playerPosition.x;
+      const dy = dungeonExitRef.position.y - playerPosition.y;
+      const dz = dungeonExitRef.position.z - playerPosition.z;
+      const distSq = dx * dx + dy * dy + dz * dz;
+
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        best = {
+          id: "dungeon_exit",
+          name: "Dungeon Exit",
+          mesh: dungeonExitRef,
+          talkable: true,
+          hostile: false,
+          isDungeonExit: true,
+          dialogId: null,
+        };
+      }
+    }
+
+    return best;
+  }
+
+  // Overworld: normal talkable NPCs + dungeon entrance
   for (const npc of npcs) {
     if (!npc.talkable || !npc.mesh) continue;
 
@@ -567,7 +612,6 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
     }
   }
 
-  // 2) dungeon entrance (treated as a "special NPC-like" object)
   if (dungeonEntranceRef) {
     const dx = dungeonEntranceRef.position.x - playerPosition.x;
     const dy = dungeonEntranceRef.position.y - playerPosition.y;
@@ -625,4 +669,53 @@ export function setNPCHostile(npcId, hostile) {
 
 export function registerDungeonEntrance(mesh) {
   dungeonEntranceRef = mesh;
+}
+
+export function registerDungeonExit(mesh) {
+  dungeonExitRef = mesh;
+}
+
+export function setInDungeonMode(isInDungeon) {
+  inDungeonMode = !!isInDungeon;
+}
+
+// Monster generator: spawn a new hostile monster in the overworld
+export function spawnRandomMonster(difficulty = 1) {
+  if (!TRef || !sceneRef) return null;
+
+  const npcGeo = new TRef.BoxGeometry(1, 2, 1);
+  const mat = new TRef.MeshStandardMaterial({ color: 0x993333 });
+  const mesh = new TRef.Mesh(npcGeo, mat);
+
+  const radius = 12 + Math.random() * 10;
+  const angle = Math.random() * Math.PI * 2;
+  mesh.position.set(
+    Math.cos(angle) * radius,
+    1,
+    Math.sin(angle) * radius
+  );
+  sceneRef.add(mesh);
+
+  const id = `monster_${nextMonsterId++}`;
+
+  const npc = {
+    id,
+    name: "Monster",
+    mesh,
+    talkable: false,
+    hostile: true,
+    dialogId: null,
+    type: "melee",
+    aiState: "chase",
+    aiData: {
+      moveSpeed: MELEE_MOVE_SPEED + 0.3 * (difficulty - 1),
+      meleeDamage: MELEE_DAMAGE + 2 * (difficulty - 1),
+    },
+    elite: difficulty >= 3,
+    team: null,
+  };
+
+  npcs.push(npc);
+  console.log(`[NPC SYSTEM] Spawned monster ${id} with difficulty ${difficulty}.`);
+  return npc;
 }

@@ -1,3 +1,4 @@
+// game.js
 // @ts-check
 import * as T from "./CS559-Three/build/three.module.js";
 
@@ -8,6 +9,8 @@ import {
   initNPCSystem,
   updateNPCSystem,
   registerDungeonEntrance,
+  registerDungeonExit,
+  setInDungeonMode,
 } from "./systems/npcSystem.js";
 import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js";
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
@@ -23,7 +26,6 @@ import {
 import * as Gen from "./env/worldObjects.js";
 import { Dungeon } from "./env/Dungeon.js";
 
-
 // --- Renderer setup ---
 const renderer = new T.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio || 1);
@@ -32,7 +34,8 @@ document.getElementById("div1").appendChild(renderer.domElement);
 
 // --- Scene & camera ---
 const scene = new T.Scene();
-// These are just sample objects for review
+
+// Sample environment objects
 const birch = new Gen.Birch(new T.Vector3(5, 0, 5), 1);
 scene.add(birch);
 const spruce = new Gen.Spruce(new T.Vector3(5, 0, 10), 1.5);
@@ -48,7 +51,7 @@ scene.add(bush);
 const barrel = new Gen.Barrel(new T.Vector3(0, 0, 5), 1);
 scene.add(barrel);
 
-// create Dungeon & register it with NPC system
+// Dungeon entrance (overworld)
 let dungeonEntrance = new Gen.DungeonEntrance(new T.Vector3(-7, -3, 8), 7);
 dungeonEntrance.rotateY(Math.PI / 1.2);
 scene.add(dungeonEntrance);
@@ -63,7 +66,7 @@ const camera = new T.PerspectiveCamera(
 camera.position.set(0, 5, 10);
 camera.lookAt(0, 0, 0);
 
-// dugeon setting
+// Dungeon / scene state
 let activeScene = scene;
 let inDungeon = false;
 
@@ -76,54 +79,26 @@ dirLight.position.set(10, 20, 10);
 scene.add(dirLight);
 
 // --- Map placeholder (Tim) ---
-/* returns:
-    bounds: {
-      minX: -arenaSize + 1,
-      maxX: arenaSize - 1,
-      minZ: -arenaSize + 1,
-      maxZ: arenaSize - 1,
-    },
-    walls, // in case we want more detailed collision later
-    ground, 
-*/
 const mapInfo = createBasicMap(T, scene);
 
-// --- Player placeholder (Aiden) ---
-/* returns:
-    1. mesh
-    2. update(dt) 
-    3. setLookAngles(yaw, pitch) where 
-            • yaw (number): rotation around vertical axis.
-            • pitch (number): rotation around horizontal axis.
-    4. getEyePosition()
-            • Returns a THREE.Vector3.
-            • Represents where the camera should be placed (eye height).
-    5. getForwardDirection
-            • Returns a normalized THREE.Vector3.
-            • Represents viewing direction calculated from stored yaw/pitch.
- */
-const playerController = createPlayerController(T, scene, mapInfo);
-
-// --- Player stats placeholder (Aiden) ---
-/* returns:
-    getHealth: () => health,
-    getStamina: () => stamina,
-
-    more to be added later...
- */
+// --- Player stats (Aiden) ---
 const playerStats = createPlayerStats();
+
+// --- Player placeholder (Aiden) ---
+const playerController = createPlayerController(T, scene, mapInfo, playerStats);
 
 // --- systems ---
 initNPCSystem(T, scene, playerController);
-initDialogSystem(scene, playerController);
+initDialogSystem(scene, playerController, playerStats);
 initCameraSystem(scene, camera, playerController, renderer.domElement);
 initUIManager(renderer.domElement, playerController, playerStats);
 initBattleSystem(scene, playerController, playerStats);
 initCollisionSystem(T, scene, playerController, mapInfo.walls || []);
-// TEMP: disable collision so I can walk into cave
+
+// TEMP: disable collision so we can walk into cave
 setCollisionEnabled(false);
 
-// Registers world objects as static colliders so player and arrows can't pass through them
+// Register world objects as static colliders
 addStaticCollider(birch);
 addStaticCollider(spruce);
 addStaticCollider(rock);
@@ -142,39 +117,72 @@ window.addEventListener("resize", () => {
   camera.updateProjectionMatrix();
 });
 
-// --- Main loop ---
+// --- Skybox ---
 let lastTime = 0;
-// Switch to determine the direction of the skybox shift
 let dayToNight = true;
 let currentSkybox = 0;
 let timeSinceLastSkybox = 0;
-let parentDir = './env/textures/sky/';
+let parentDir = "./env/textures/sky/";
 const loader = new T.CubeTextureLoader();
 loader.setPath(parentDir + `${currentSkybox}/`);
 let textureCube = loader.load([
-  'left.png', 'right.png', 'top.png', 'bottom.png', 'back.png', 'front.png'
+  "left.png",
+  "right.png",
+  "top.png",
+  "bottom.png",
+  "back.png",
+  "front.png",
 ]);
 scene.background = textureCube;
 
 scene.add(new T.AxesHelper(5));
 
-// Dungeon test
+// --- Dungeon setup ---
 const dungeon = new Dungeon();
+
+// Simple dungeon exit object
+const dungeonExitGeo = new T.BoxGeometry(2, 3, 0.5);
+const dungeonExitMat = new T.MeshStandardMaterial({
+  color: 0x66ccff,
+  transparent: true,
+  opacity: 0.6,
+});
+const dungeonExit = new T.Mesh(dungeonExitGeo, dungeonExitMat);
+dungeonExit.position.set(0, 1.5, -8); // tweak as needed inside Dungeon
+dungeon.add(dungeonExit);
+registerDungeonExit(dungeonExit);
+
+// Dungeon enter
 window.addEventListener("dungeon-enter-request", () => {
-  // Switch to dungeon scene
   inDungeon = true;
   activeScene = dungeon;
+  setInDungeonMode(true);
 
-  // Teleport player inside dungeon
   if (playerController && playerController.mesh) {
-    playerController.mesh.position.set(0, 0, 0); // tweak spawn point if needed
+    // Teleport player logically to dungeon location (even if not rendered)
+    playerController.mesh.position.set(0, 0, 0);
   }
 
-  // Adjust camera
   camera.position.set(0, 5, 10);
   camera.lookAt(0, 0, 0);
 });
 
+// Dungeon exit
+window.addEventListener("dungeon-exit-request", () => {
+  inDungeon = false;
+  activeScene = scene;
+  setInDungeonMode(false);
+
+  if (playerController && playerController.mesh) {
+    // Return player near the dungeon entrance in overworld
+    playerController.mesh.position.set(-7, 0, 8);
+  }
+
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 0, 0);
+});
+
+// --- Main loop ---
 function animate(time) {
   const dt = (time - lastTime) / 1000 || 0;
   lastTime = time;
@@ -193,8 +201,7 @@ function animate(time) {
   birch.animateLeaves(dt);
   bush.animateLeaves(dt);
 
-  // Skybox color shift logic
-  // Shifts to next skybox every minute
+  // Skybox color shift
   timeSinceLastSkybox += dt;
   if (timeSinceLastSkybox >= 5) {
     if (currentSkybox === 0) {
@@ -207,13 +214,16 @@ function animate(time) {
     console.log(`Switching to skybox ${currentSkybox}`);
     loader.setPath(parentDir + `${currentSkybox}/`);
     let textureCube = loader.load([
-      'left.png', 'right.png', 'top.png', 'bottom.png', 'back.png', 'front.png'
+      "left.png",
+      "right.png",
+      "top.png",
+      "bottom.png",
+      "back.png",
+      "front.png",
     ]);
     scene.background = textureCube;
   }
 
-  // SCENE SELECTION
-  //renderer.render(dungeon, camera);
   renderer.render(activeScene, camera);
 
   requestAnimationFrame(animate);
