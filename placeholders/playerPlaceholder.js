@@ -571,9 +571,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
   // --- Public update called from game.js ---
   function update(dt) {
-    // 🔹 If dead, freeze movement/jumping/bobbing.
+    // If dead, freeze movement/jumping/bobbing.
     if (controlsLocked) {
-      // You *could* still move arrows here if you wanted, but dead = frozen, so:
       return;
     }
     // Dagger animation
