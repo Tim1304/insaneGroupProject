@@ -39,6 +39,14 @@ function ensureNPCStats(npc) {
   return npc.stats;
 }
 
+function safeDispatch(name, detail) {
+  try {
+    window.dispatchEvent(new CustomEvent(name, { detail }));
+  } catch (e) {
+    console.warn("battleSystem: failed to dispatch", name, e);
+  }
+}
+
 
 let swordButton = null;
 let fistButton = null;
@@ -335,7 +343,6 @@ function rewardForKill(npc) {
   );
 }
 
-
 /**
  * End battle. If won === true, enemy is removed.
  */
@@ -351,9 +358,15 @@ function endBattle(won) {
       // Give rewards BEFORE removing the NPC
       rewardForKill(npc);
 
-      if (npc.mesh && sceneRef) {
-        sceneRef.remove(npc.mesh);
+      // Remove from whatever scene this mesh is actually in
+      if (npc.mesh) {
+        if (npc.mesh.parent) {
+          npc.mesh.parent.remove(npc.mesh);
+        }
+        // Make sure AI / systems stop touching this
+        npc.mesh = null;
       }
+
       npc.talkable = false;
       npc.hostile = false;
     }
@@ -363,6 +376,7 @@ function endBattle(won) {
   enemyId = null;
   enemyHP = 0;
 }
+
 
 
 
@@ -607,11 +621,32 @@ export function playerTakeDamage(amount, sourceNpcId) {
       `. playerHP=${playerHP}`
   );
 
-  if (playerHP <= 0) {
+    if (playerHP <= 0) {
+    // End the battle, but do NOT touch UI here.
     endBattle(false);
-    // TODO: proper death/respawn system
+
+    // Compute score to send with the event
+    let score = 0;
+    if (playerStatsRef && typeof playerStatsRef.getScore === "function") {
+      try {
+        score = Number(playerStatsRef.getScore()) || 0;
+      } catch (err) {
+        score = 0;
+      }
+    }
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent("player-dead", {
+          detail: { score },
+        })
+      );
+    } catch (err) {
+      console.warn("battleSystem: failed to dispatch player-dead", err);
+    }
   }
 }
+
 
 function setNPCHostileSafe(id, hostile) {
   try {

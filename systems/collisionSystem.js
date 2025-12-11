@@ -83,9 +83,13 @@ class ColliderOBB {
    * @param {THREE.Object3D} object
    * @param {boolean} dynamic Whether the object moves/rotates a lot (player/NPC)
    */
-  constructor(object, dynamic = false) {
+  constructor(object, dynamic = false, shrinkXZ = 1.0, shrinkY = 1.0) {
     this.object = object;
     this.dynamic = dynamic;
+
+    // shrink factors (0.6 = 60% of auto size)
+    this.shrinkXZ = shrinkXZ;
+    this.shrinkY = shrinkY;
 
     this.centerWorld = new TRef.Vector3();
     this.center2D = vec2(0, 0);
@@ -188,7 +192,7 @@ class ColliderOBB {
     obj.getWorldScale(this._tmpScale);
 
     // Height (simple Y overlap)
-    this.heightHalf = this.localHeightHalf * Math.abs(this._tmpScale.y || 1);
+    this.heightHalf = this.localHeightHalf * Math.abs(this._tmpScale.y || 1) * this.shrinkY;
 
     // Orientation: get world quaternion, project local axes to XZ
     obj.getWorldQuaternion(this._tmpQuat);
@@ -205,8 +209,8 @@ class ColliderOBB {
     this.axisV = v;
 
     // world extents in X/Z
-    this.halfX = Math.max(0.001, this.localHalfSize.x * Math.abs(this._tmpScale.x || 1));
-    this.halfZ = Math.max(0.001, this.localHalfSize.z * Math.abs(this._tmpScale.z || 1));
+    this.halfX = Math.max(0.001, this.localHalfSize.x * Math.abs(this._tmpScale.x || 1)) * this.shrinkXZ;
+    this.halfZ = Math.max(0.001, this.localHalfSize.z * Math.abs(this._tmpScale.z || 1)) * this.shrinkXZ;
   }
 
   /**
@@ -554,10 +558,10 @@ function removeArrow(arrow) {
  * Register a new static collider object.
  * Keeps the same API as before: addStaticCollider(mesh, isDungeon)
  */
-export function addStaticCollider(mesh, isDungeon = false) {
+export function addStaticCollider(mesh, isDungeon = false, shrinkXZ = 1.0, shrinkY = 1.0) {
   if (!mesh || !TRef) return;
 
-  const col = new ColliderOBB(mesh, false);
+  const col = new ColliderOBB(mesh, false, shrinkXZ, shrinkY);
 
   if (isDungeon) {
     dungeonColliders.push(col);

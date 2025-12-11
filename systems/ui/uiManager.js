@@ -9,6 +9,7 @@ import {
   updateDialogUI,
 } from "./dialogUI.js";
 import { initHUDUI, updateHUDUI } from "./hudUI.js";
+import { initDeathUI, showDeathUI } from "./deathUI.js";
 
 let domRef = null;
 let playerRef = null;
@@ -50,6 +51,7 @@ export function initUIManager(domElement, playerController, playerStats) {
   initPlayerStatusUI(uiRoot, playerStatsRef);
   initDialogUI(uiRoot);
   initHUDUI(uiRoot, playerRef, playerStatsRef);
+  initDeathUI(uiRoot);
 
   createStatsPanel();
   createInventoryPanel();
@@ -372,6 +374,28 @@ function setupInventoryListeners() {
     if (statsOpen) refreshStatsPanel();
   });
 }
+
+function setupDeathListeners() {
+  window.addEventListener("player-dead", (e) => {
+    let score = 0;
+
+    if (e && e.detail && typeof e.detail.score === "number") {
+      score = e.detail.score;
+    } else if (
+      playerStatsRef &&
+      typeof playerStatsRef.getScore === "function"
+    ) {
+      try {
+        score = Number(playerStatsRef.getScore()) || 0;
+      } catch (err) {
+        score = 0;
+      }
+    }
+
+    showDeathUI(score);
+  });
+}
+
 
 function toggleInventoryPanel() {
   if (!inventoryPanel) return;
