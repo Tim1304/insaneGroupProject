@@ -26,16 +26,33 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   const player = new T.Group();
   player.position.y += 1;
   scene.add(player);
-  let hand = new Gen.Weapon(new T.Vector3(-1, 0, 2), 1, './env/readyMades/hand.glb');
-  player.add(hand);
-  weapons.push(hand);
-  let dagger = new Gen.Weapon(new T.Vector3(-1, 0, 2), 1, './env/readyMades/dagger.glb');
-  player.add(dagger);
-  weapons.push(dagger);
-  let bow = new Gen.Weapon(new T.Vector3(-1, 0, 2), 1, './env/readyMades/bow.glb');
-  player.add(bow);
+
+  // 🔹 Weapon root: follow camera pitch
+  const weaponRoot = new T.Group();
+  player.add(weaponRoot);
+
+  let dagger = new Gen.Dagger();
+  dagger.position.set(-1, 0, 2);
+  weaponRoot.add(dagger);
+
+  // start hidden; will only show when sword is equipped
+  dagger.visible = false;
+
+  let bow = new Gen.Bow();
+  bow.position.set(-1, 0, 2);
+  weaponRoot.add(bow);
   weapons.push(bow);
 
+  // start hidden; will only show when bow is equipped
+  bow.visible = false;
+
+  let hand = new Gen.Hand();
+  hand.position.set(-1, 0, 2);
+  weaponRoot.add(hand);
+  hand.rotateX(Math.PI / 4);
+  hand.rotateY(Math.PI / 2);
+  weapons.push(hand);
+  hand.visible = true;
 
   // Simple "dummy" to hit (for debug)
   const dummyGeo = new T.BoxGeometry(1, 2, 1);
@@ -118,6 +135,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
         }
       }
       setCurrentWeapon("sword");
+      console.log("WHAT");
       weapons.forEach((w) => w.visible = false);
       dagger.visible = true;
       return;
@@ -201,6 +219,18 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     }
 
     console.log("[Player] Equipped weapon:", currentWeapon);
+    if (currentWeapon === "sword") {
+      weapons.forEach((w) => w.visible = false);
+      dagger.visible = true;
+    } else if (currentWeapon === "bow") {
+      weapons.forEach((w) => w.visible = false);
+      bow.visible = true;
+    } else {
+      // hand
+      weapons.forEach((w) => w.visible = false);
+      dagger.visible = false;
+      bow.visible = false;
+    }
   }
 
   // --- Input listener (mouse attack) ---
@@ -376,6 +406,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   // --- Attack logic ---
 
   function attack() {
+    isSwinging = true;
     if (currentWeapon === "sword") {
       meleeAttack("sword");
     } else if (currentWeapon === "bow") {
@@ -387,9 +418,13 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   }
 
   function meleeAttack(weaponOverride) {
-    isSwinging = true;
-    console.log(isSwinging);
     const weapon = weaponOverride || currentWeapon;
+
+    // Trigger sword swing animation (alternating diagonal)
+    if (weapon === "sword" && dagger && typeof dagger.startSwing === "function") {
+      dagger.startSwing();
+      //isSwinging = true;
+    }
 
     // base stats
     let dmg = 20;
@@ -401,12 +436,17 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     }
 
     // apply strength stat for sword damage (10% per level above 1)
-    if (weapon === 'sword' && playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
+    if (
+      weapon === "sword" &&
+      playerStatsRef &&
+      typeof playerStatsRef.getStatLevel === "function"
+    ) {
       try {
-        const lvl = Number(playerStatsRef.getStatLevel('strength')) || 1;
+        const lvl = Number(playerStatsRef.getStatLevel("strength")) || 1;
         const mult = 1 + 0.1 * Math.max(0, lvl - 1);
         dmg = dmg * mult;
       } catch (err) {
+        // ignore
       }
     }
 
@@ -435,6 +475,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       // ignore if dispatch fails
     }
   }
+
 
   function createCrosshair() {
     if (crosshairEl) return;
@@ -564,14 +605,22 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
   // --- Public update called from game.js ---
   function update(dt) {
-    // 🔹 If dead, freeze movement/jumping/bobbing.
+    // If dead, freeze movement/jumping/bobbing.
     if (controlsLocked) {
-      // You *could* still move arrows here if you wanted, but dead = frozen, so:
       return;
     }
     // Weapon animation
+    console.log("isSwinging: ", isSwinging);
     if (isSwinging) {
-      isSwinging = dagger.animateSwing(dt);
+      if (currentWeapon === "bow" && bow) {
+        console.log("Swinging");
+        isSwinging = bow.animateSwing(dt);
+      } else if (currentWeapon === "sword" && dagger) {
+        console.log("Swinging");
+        isSwinging = dagger.animateSwing(dt);
+      } else {
+        isSwinging = hand.animateSwing(dt);
+      }
     }
     updateVertical(dt);
     updateMovement(dt);
@@ -579,6 +628,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     updateArrows(dt);
     player.rotation.y = Math.atan2(getForwardDirection().x, getForwardDirection().z);
   }
+
 
   return {
     mesh: player,

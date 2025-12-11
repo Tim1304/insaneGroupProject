@@ -302,8 +302,10 @@ window.addEventListener("dungeon-enter-request", () => {
   setInDungeonMode(true);
 
   if (playerController && playerController.mesh) {
+    // Move player (and all its children like the sword) into the dungeon scene
+    dungeon.add(playerController.mesh);
+
     // Teleport player logically to dungeon location
-    // OLD: playerController.mesh.position.set(0, 0, 0);
     playerController.mesh.position.set(0, 1, 0);  // use groundY
   }
 
@@ -322,15 +324,19 @@ window.addEventListener("dungeon-exit-request", () => {
   activeScene = scene;
   setInDungeonMode(false);
   setCollisionDungeonMode(false);
+
   if (playerController && playerController.mesh) {
+    // Move player (and sword) back to overworld scene
+    scene.add(playerController.mesh);
+
     // Return player near the dungeon entrance in overworld
-    // OLD: playerController.mesh.position.set(-7, 0, 8);
     playerController.mesh.position.set(-7, 1, 8);  // use groundY
   }
 
   camera.position.set(0, 5, 10);
   camera.lookAt(0, 0, 0);
 });
+
 
 // Tavern enter
 window.addEventListener("tavern-enter-request", () => {
@@ -354,7 +360,8 @@ window.addEventListener("tavern-enter-request", () => {
       setCollisionDungeonMode(false);
 
       if (playerController && playerController.mesh) {
-        // Place player at origin; innkeeper will be at (0,0,0) in Tavern.js
+        // Move player into tavern scene
+        tavernScene.add(playerController.mesh);
         playerController.mesh.position.set(0, 1, 0);
       }
 
