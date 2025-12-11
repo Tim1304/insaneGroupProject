@@ -30,10 +30,10 @@ function ensureNPCStats(npc) {
   //   health:  { level, killsSinceLevel }
   if (!npc.stats) {
     npc.stats = {
-      speed:   { level: 1, jumpsSinceLevel: 0 },
-      strength:{ level: 1, killsSinceLevel: 0 },
+      speed: { level: 1, jumpsSinceLevel: 0 },
+      strength: { level: 1, killsSinceLevel: 0 },
       handEye: { level: 1, killsSinceLevel: 0 },
-      health:  { level: 1, killsSinceLevel: 0 },
+      health: { level: 1, killsSinceLevel: 0 },
     };
   }
   return npc.stats;
@@ -355,8 +355,8 @@ function endBattle(won) {
   if (won && enemyId) {
     const npc = getNPCs().find((n) => n.id === enemyId);
     if (npc) {
-      // Give rewards BEFORE removing the NPC
-      rewardForKill(npc);
+      // Give rewards + schedule respawn BEFORE removing the NPC
+      grantEnemyDefeatRewards(npc);
 
       // Remove from whatever scene this mesh is actually in
       if (npc.mesh) {
@@ -402,45 +402,12 @@ function applyDamageToEnemy(dmg, npc) {
 
 
 function grantEnemyDefeatRewards(npc) {
-  if (!playerStatsRef) return;
+  if (!playerStatsRef || !npc) return;
 
-  const type = npc.type || "melee";
+  // 1) Give gold / score via existing helper
+  rewardForKill(npc);
 
-  let goldMin = 5;
-  let goldMax = 10;
-  let scoreGain = 10;
-
-  switch (type) {
-    case "melee":
-      goldMin = 5;
-      goldMax = 10;
-      scoreGain = 10;
-      break;
-    case "bow":
-      goldMin = 8;
-      goldMax = 14;
-      scoreGain = 12;
-      break;
-    case "tank":
-      goldMin = 10;
-      goldMax = 18;
-      scoreGain = 15;
-      break;
-    default:
-      break;
-  }
-
-  const goldBase = goldMin + Math.random() * (goldMax - goldMin);
-  const goldMultiplier = 1 + (difficultyLevel - 1) * 0.25;
-  const goldDrop = Math.round(goldBase * goldMultiplier);
-
-  if (typeof playerStatsRef.addGold === "function") {
-    playerStatsRef.addGold(goldDrop);
-  }
-  if (typeof playerStatsRef.addScore === "function") {
-    playerStatsRef.addScore(scoreGain);
-  }
-
+  // 2) Track total enemies defeated + difficulty scaling
   enemiesDefeated += 1;
 
   if (enemiesDefeated > 0 && enemiesDefeated % 3 === 0) {
@@ -450,19 +417,38 @@ function grantEnemyDefeatRewards(npc) {
     );
   }
 
-  // Monster generator: ONLY spawn new monsters if we're in the dungeon.
+  // 3) Dungeon-only respawn with a short delay
   try {
-    if (typeof getInDungeonMode === "function" && getInDungeonMode()) {
-      spawnRandomMonster(difficultyLevel);
+    if (typeof getInDungeonMode === "function") {
+      const delayMs = 800; // ~0.8s delay before the next dungeon enemy spawns
+
+      window.setTimeout(() => {
+        try {
+          const stillInDungeon = getInDungeonMode();
+          console.log(
+            `[BattleSystem] delayed spawn check: stillInDungeon=${stillInDungeon}, difficulty=${difficultyLevel}`
+          );
+
+          if (stillInDungeon) {
+            console.log(
+              `[BattleSystem] Spawning new dungeon monster (difficulty ${difficultyLevel}) after delay.`
+            );
+            spawnRandomMonster(difficultyLevel);
+          } else {
+            console.log(
+              "[BattleSystem] Skipped respawn because player left dungeon."
+            );
+          }
+        } catch (err) {
+          console.warn("battleSystem: delayed spawnRandomMonster failed", err);
+        }
+      }, delayMs);
     }
   } catch (err) {
-    console.warn("battleSystem: spawnRandomMonster failed", err);
+    console.warn("battleSystem: spawnRandomMonster scheduling failed", err);
   }
-
-  console.log(
-    `[BattleSystem] Rewards: +${goldDrop} gold, +${scoreGain} score (difficulty ${difficultyLevel})`
-  );
 }
+
 
 // --- UI Buttons for player melee attacks (debug) ---
 
@@ -568,9 +554,9 @@ function flashNPC(npc, colorHex, ms) {
     setTimeout(() => {
       try {
         npc.mesh.material.color.set(prev);
-      } catch (e) {}
+      } catch (e) { }
     }, ms);
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function highlightEnemyMesh(on) {
@@ -622,8 +608,8 @@ export function playerTakeDamage(amount, sourceNpcId) {
 
   console.log(
     `Player took ${dmg} damage` +
-      (sourceNpcId ? ` from ${sourceNpcId}` : "") +
-      `. playerHP=${playerHP}`
+    (sourceNpcId ? ` from ${sourceNpcId}` : "") +
+    `. playerHP=${playerHP}`
   );
 
   if (playerHP <= 0) {

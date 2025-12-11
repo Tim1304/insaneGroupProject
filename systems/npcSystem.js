@@ -741,7 +741,13 @@ export function getOverworldSceneRef() {
 export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ = null) {
   if (!TRef || (!dungeonSceneRef && !overworldSceneRef)) return null;
 
-  const parentScene = dungeonSceneRef || overworldSceneRef;
+  // Are we actually in dungeon mode and have a dungeon scene?
+  const inDungeon = !!dungeonSceneRef && inDungeonMode === true;
+
+  // Pick which scene to attach the monster to
+  const parentScene = inDungeon ? dungeonSceneRef : overworldSceneRef;
+  if (!parentScene) return null;
+
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
 
   // -----------------------------
@@ -750,37 +756,22 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
   let spawnX, spawnZ;
 
   if (overrideX !== null && overrideZ !== null) {
-    // Explicit forced position (used by spawnDungeonMonsterAt)
+    // Explicit forced position
     spawnX = overrideX;
     spawnZ = overrideZ;
-  } else if (
-    dungeonSceneRef &&
-    Array.isArray(dungeonSceneRef.spawnCells) &&
-    dungeonSceneRef.spawnCells.length > 0
-  ) {
-    // Dungeon-safe fixed spawn cells from Dungeon.js
-    // Avoid cells too close to origin (player spawn)
-    const cells = dungeonSceneRef.spawnCells;
-    const minDist = 16;            // ≈ 2 tunnel segments away
-    const minDistSq = minDist * minDist;
-
-    let chosen = cells[0];
-
-    // Try a few times to get a "far enough" cell
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const idx = Math.floor(Math.random() * cells.length);
-      const c = cells[idx];
-      const d2 = c.x * c.x + c.z * c.z;
-      if (d2 >= minDistSq) {
-        chosen = c;
-        break;
-      }
+  } else if (inDungeon && typeof dungeonSceneRef.getRandomSpawnPosition === "function") {
+    // Use dungeon's spawnCells via Dungeon.getRandomSpawnPosition()
+    const v = dungeonSceneRef.getRandomSpawnPosition();
+    if (v && typeof v.x === "number" && typeof v.z === "number") {
+      spawnX = v.x;
+      spawnZ = v.z;
+    } else {
+      // Fallback inside dungeon if something is weird
+      spawnX = 0;
+      spawnZ = 0;
     }
-
-    spawnX = chosen.x;
-    spawnZ = chosen.z;
   } else {
-    // Fallback: original behavior (around player)
+    // Overworld (or no dungeon spawn helper): original behavior, around player
     let centerX = 0;
     let centerZ = 0;
     if (playerRef && playerRef.mesh) {
@@ -795,36 +786,40 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
   }
 
   // -----------------------------
-  // Type selection + stats
+  // Choose monster type
   // -----------------------------
-  const id = `monster_${nextMonsterId++}`;
+  const safeDiff = Math.max(1, Number(difficulty) || 1);
+  const speedScale = 1 + 0.15 * (safeDiff - 1);
+  const damageScale = 1 + 0.2 * (safeDiff - 1);
 
-  // Difficulty scaling factors
-  const speedScale = 1 + 0.15 * (difficulty - 1);
-  const damageScale = 1 + 0.2 * (difficulty - 1);
-
-  // Randomly choose type: melee / bow / tank
   let type = "melee";
-  const roll = Math.random();
-  if (roll < 0.4) {
-    type = "melee";
-  } else if (roll < 0.7) {
-    type = "bow";
+
+  if (inDungeon) {
+    // In dungeon: mix of melee / bow / tank
+    const roll = Math.random();
+    if (roll < 0.4) {
+      type = "melee";
+    } else if (roll < 0.7) {
+      type = "bow";
+    } else {
+      type = "tank";
+    }
   } else {
-    type = "tank";
+    // Overworld waves (if you use them later) -> keep simple
+    type = "melee";
   }
 
-  let aiState;
-  let aiData = {};
   let color = 0x993333;
-  let displayName = "Dungeon Monster";
+  let name = "Dungeon Monster";
+  let aiState = "chase";
+  let aiData = {};
   let loggedMoveSpeed = 0;
   let loggedDamage = 0;
 
   if (type === "melee") {
-    // Red melee bandit-style
+    // Red melee
     color = 0xaa3333;
-    displayName = "Dungeon Melee";
+    name = inDungeon ? "Dungeon Melee" : "Bandit";
     aiState = "chase";
 
     const moveSpeed = MELEE_MOVE_SPEED * speedScale;
@@ -839,32 +834,33 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
     loggedMoveSpeed = moveSpeed;
     loggedDamage = damage;
   } else if (type === "bow") {
-    // Green archer-style
+    // Green archer
     color = 0x33aa55;
-    displayName = "Dungeon Archer";
+    name = "Dungeon Archer";
     aiState = "aim";
 
     const moveSpeedRun = BOW_MOVE_SPEED_RUN * speedScale;
     const moveSpeedAim = BOW_MOVE_SPEED_AIM * speedScale;
     const shotCooldown = Math.max(
       0.4,
-      BOW_SHOT_COOLDOWN / (1 + 0.1 * (difficulty - 1))
+      BOW_SHOT_COOLDOWN / (1 + 0.1 * (safeDiff - 1))
     );
+    const arrowDamage = BOW_ARROW_DAMAGE * damageScale;
 
     aiData = {
       moveSpeedRun,
       moveSpeedAim,
       shotCooldown,
+      arrowDamage,
     };
 
     loggedMoveSpeed = moveSpeedRun;
-    loggedDamage = BOW_ARROW_DAMAGE * damageScale;
+    loggedDamage = arrowDamage;
   } else {
-    // Blue tank-style
+    // Blue tank
     color = 0x555588;
-    displayName = "Dungeon Tank";
-    // Tank AI starts idle and will transition via updateTankAI
-    aiState = "idle";
+    name = "Dungeon Tank";
+    aiState = "idle"; // updateTankAI will switch to "chase" when in range
 
     const moveSpeed = TANK_MOVE_SPEED * speedScale;
     const damage = TANK_DAMAGE * damageScale;
@@ -879,16 +875,18 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
   }
 
   // -----------------------------
-  // Create mesh & NPC struct
+  // Create mesh and NPC entry
   // -----------------------------
   const mat = new TRef.MeshStandardMaterial({ color });
   const mesh = new TRef.Mesh(npcGeo, mat);
   mesh.position.set(spawnX, 1, spawnZ);
   parentScene.add(mesh);
 
+  const id = `monster_${nextMonsterId++}`;
+
   const npc = {
     id,
-    name: displayName,
+    name,
     mesh,
     talkable: false,
     hostile: true,
@@ -896,20 +894,21 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
     type,
     aiState,
     aiData,
-    elite: difficulty >= 3,
+    elite: safeDiff >= 3,
     team: "bandits",
   };
 
   npcs.push(npc);
 
   console.log(
-    `[NPC SYSTEM] Spawned ${type} dungeon monster ${id} at (${spawnX.toFixed(
+    `[NPC SYSTEM] Spawned ${inDungeon ? "dungeon" : "overworld"} ${type} monster ${id} at (${spawnX.toFixed(
       1
-    )}, ${spawnZ.toFixed(1)}) difficulty=${difficulty}, speed=${loggedMoveSpeed.toFixed(
+    )}, ${spawnZ.toFixed(1)}), diff=${safeDiff}, speed=${loggedMoveSpeed.toFixed(
       2
     )}, dmg=${loggedDamage.toFixed(1)}`
   );
 
   return npc;
 }
+
 

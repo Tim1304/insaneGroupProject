@@ -353,12 +353,17 @@ export function updateCollisionSystem(dt) {
   if (!collisionEnabled || !playerCollisionEnabled) return;
 
   try {
+    // 1) Keep NPCs from walking through dungeon/overworld walls
+    handleNPCCollisions();
+    // 2) Then resolve player vs walls & NPCs
     handlePlayerCollisions();
+    // 3) Finally resolve all arrow collisions
     handleArrowCollisions();
   } catch (err) {
     console.warn("collisionSystem (OBB) update error", err);
   }
 }
+
 
 // -------------------------------------------------------
 // Player collisions vs static and NPCs
@@ -409,6 +414,51 @@ function handlePlayerCollisions() {
     playerOBB.update();
   }
 }
+
+// -------------------------------------------------------
+// NPC collisions vs static colliders (dungeon walls, etc.)
+// -------------------------------------------------------
+
+function handleNPCCollisions() {
+  if (!TRef || !sceneRef) return;
+  if (!staticColliders || staticColliders.length === 0) return;
+
+  const npcs = getNPCs ? getNPCs() : [];
+  if (!npcs || npcs.length === 0) return;
+
+  // Make sure static collider OBBs are up to date
+  for (const col of staticColliders) {
+    if (!col || !col.object) continue;
+    col.update();
+  }
+
+  for (const npc of npcs) {
+    if (!npc || !npc.mesh) continue;
+
+    // Ensure each NPC has its own OBB wrapper
+    if (!npc._obb) {
+      npc._obb = new ColliderOBB(npc.mesh, true);
+    }
+
+    const npcOBB = npc._obb;
+    npcOBB.update();
+
+    for (const col of staticColliders) {
+      if (!col || !col.object) continue;
+
+      const result = testOBBIntersection(npcOBB, col);
+      if (!result.intersects || !result.axis) continue;
+
+      // Push NPC out of the wall along the best separating axis
+      const move = vec2Scale(result.axis, result.depth * result.sign + 0.01);
+      npc.mesh.position.x += move.x;
+      npc.mesh.position.z += move.z;
+
+      npcOBB.update();
+    }
+  }
+}
+
 
 // -------------------------------------------------------
 // Arrow collision handler
