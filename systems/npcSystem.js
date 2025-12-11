@@ -2,6 +2,8 @@
 // NPC management + basic AI for melee / bow / tank monsters.
 // Also handles enemy arrow spawning & movement.
 
+import * as Gen from "../env/worldObjects.js";
+
 let TRef = null;
 let overworldSceneRef = null;
 let dungeonSceneRef = null;
@@ -90,6 +92,9 @@ export function initNPCSystem(T, scene, playerController) {
 export function registerDungeonScene(dungeonScene) {
   dungeonSceneRef = dungeonScene;
 }
+export function registerTavernScene(tavernScene) {
+  tavernSceneRef = tavernScene;
+}
 
 // -------------------------------------------------------
 // Scene setup
@@ -101,9 +106,8 @@ function createNPCs() {
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
 
   // Innkeeper – neutral, dialog only
-  const innMat = new TRef.MeshStandardMaterial({ color: 0xffcc66 });
-  const innMesh = new TRef.Mesh(npcGeo, innMat);
-  innMesh.position.set(4, 1, 0);
+  let innMesh = new Gen.Innkeeper(new TRef.Vector3(4, 0, 0), 2);
+  innMesh.position.set(4, 0, 0);
   overworldSceneRef.add(innMesh);
 
   npcs.push({
