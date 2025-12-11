@@ -26,6 +26,9 @@ let fistButton = null;
 let difficultyLevel = 1;
 let enemiesDefeated = 0;
 
+const BOW_AUTO_LOCK_RANGE = 30.0;
+
+
 /**
  * Initialize the battle system.
  * @param {THREE.Scene} scene
@@ -140,59 +143,48 @@ function onPlayerAttack(e) {
  * detail: { pos: {x,y,z}, dir: {x,y,z}, dmg: number }
  */
 function onBowShot(e) {
-  if (!inBattle) return;
   const d = e.detail || {};
   const origin = d.pos;
   const dirInput = d.dir;
   const dmg = Number(d.dmg) || 0;
 
   if (!origin || !dirInput || dmg <= 0) return;
+
+  // If we're not already in battle, try to auto-lock a hostile in front
+  // of the arrow origin within some reasonable range.
+  if (!inBattle) {
+    const target = findNearestHostileInRange(origin, BOW_AUTO_LOCK_RANGE);
+    if (!target) {
+      return;
+    }
+    startBattle(target.id);
+  }
+
   if (!enemyId) return;
 
   const npc = getNPCs().find((n) => n.id === enemyId);
   if (!npc || !npc.mesh) return;
 
-  try {
-    const enemyPos = npc.mesh.position;
+  const enemyPos = npc.mesh.position;
+  const toEnemy = enemyPos.clone().sub(origin);
+  const distAlongDir = toEnemy.dot(dirInput);
 
-    const vx = enemyPos.x - origin.x;
-    const vy = enemyPos.y - origin.y;
-    const vz = enemyPos.z - origin.z;
+  if (distAlongDir < 0) {
+    // enemy is behind the shot direction
+    return;
+  }
 
-    const lenDir =
-      Math.sqrt(
-        dirInput.x * dirInput.x +
-          dirInput.y * dirInput.y +
-          dirInput.z * dirInput.z
-      ) || 1e-6;
-    const dx = dirInput.x / lenDir;
-    const dy = dirInput.y / lenDir;
-    const dz = dirInput.z / lenDir;
+  const closestPoint = origin
+    .clone()
+    .add(dirInput.clone().multiplyScalar(distAlongDir));
+  const separation = enemyPos.distanceTo(closestPoint);
 
-    const t = vx * dx + vy * dy + vz * dz;
-
-    if (t < 0) return;
-
-    const MAX_BOW_RANGE = 30;
-    if (t > MAX_BOW_RANGE) return;
-
-    const cx = origin.x + dx * t;
-    const cy = origin.y + dy * t;
-    const cz = origin.z + dz * t;
-
-    const ddx = enemyPos.x - cx;
-    const ddy = enemyPos.y - cy;
-    const ddz = enemyPos.z - cz;
-    const distToRaySq = ddx * ddx + ddy * ddy + ddz * ddz;
-
-    const hitRadius = 1.5;
-    if (distToRaySq <= hitRadius * hitRadius) {
-      applyDamageToEnemy(dmg, npc);
-    }
-  } catch (err) {
-    console.warn("battleSystem: onBowShot error", err);
+  const hitRadius = 1.2;
+  if (separation <= hitRadius) {
+    applyDamageToEnemy(dmg, npc);
   }
 }
+
 
 /**
  * Called when an NPC AI wants to damage the player.
@@ -262,31 +254,30 @@ function startBattle(npcIdParam) {
  */
 function endBattle(won) {
   console.log("Battle ended. Player won:", !!won);
-
-  let npc = null;
-  if (enemyId) {
-    npc = getNPCs().find((n) => n.id === enemyId) || null;
-  }
-
-  // Rewards + difficulty scaling + monster generator
-  if (won && npc) {
-    grantEnemyDefeatRewards(npc);
-  }
-
   removeSwordButton();
   removeFistButton();
   highlightEnemyMesh(false);
 
-  if (won && npc) {
-    if (npc.mesh && sceneRef) sceneRef.remove(npc.mesh);
-    npc.talkable = false;
-    npc.hostile = false;
+  if (won && enemyId) {
+    const npc = getNPCs().find((n) => n.id === enemyId);
+    if (npc) {
+      if (npc.mesh) {
+        // Remove from whatever scene actually owns this mesh (overworld or dungeon)
+        if (npc.mesh.parent) {
+          npc.mesh.parent.remove(npc.mesh);
+        }
+        npc.mesh = null;
+      }
+      npc.talkable = false;
+      npc.hostile = false;
+    }
   }
 
   inBattle = false;
   enemyId = null;
   enemyHP = 0;
 }
+
 
 // --- enemy damage & rewards ---
 

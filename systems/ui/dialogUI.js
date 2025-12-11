@@ -92,13 +92,13 @@ function setupEventListeners() {
     window.addEventListener("dialog-availability-show", (e) => {
     if (!promptContainer) return;
 
-    const { npcName, isDungeonEntrance } = e.detail || {};
+    const { npcName, isDungeonEntrance, isDungeonExit } = e.detail || {};
 
     if (isDungeonEntrance) {
-        // Special prompt for dungeon entrance
         promptContainer.textContent = "Press E to enter the dungeon";
+    } else if (isDungeonExit) {
+        promptContainer.textContent = "Press E to leave the dungeon";
     } else {
-        // Normal NPC prompt
         promptContainer.textContent = npcName
             ? `Press E to talk to ${npcName}`
             : "Press E to talk";

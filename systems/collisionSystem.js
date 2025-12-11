@@ -7,14 +7,31 @@
 import { getNPCs } from "./npcSystem.js";
 
 let TRef = null;
+
+// separate scene refs for overworld vs dungeon
+let overworldSceneRef = null;
+let dungeonSceneRef = null;
 let sceneRef = null;
+
 let playerRef = null;
-let staticColliders = [];
+
+let playerCollisionEnabled = true;
+
+
+// separate collider lists
+let overworldColliders = [];
+let dungeonColliders = [];
+// this is the one used inside the logic; we swap it between the two
+let staticColliders = overworldColliders;
+
+// are we logically in the dungeon right now?
+let inDungeonSpace = false;
+
 
 // turn collision on/off
 export let collisionEnabled = true;
 export function setCollisionEnabled(v) {
-    collisionEnabled = v;
+  collisionEnabled = v;
 }
 
 // Default damage for enemy arrows if not specified on the arrow itself
@@ -22,17 +39,50 @@ const ENEMY_ARROW_DEFAULT_DAMAGE = 8;
 
 export function initCollisionSystem(T, scene, playerController, colliders = []) {
   TRef = T;
+  overworldSceneRef = scene;
   sceneRef = scene;
   playerRef = playerController;
-  staticColliders = Array.isArray(colliders) ? colliders.slice() : [];
+
+  overworldColliders = Array.isArray(colliders)
+    ? colliders.slice()
+    : [];
+  staticColliders = overworldColliders;
 
   console.log("Collision system initialized.");
+}
+
+// Tell the collision system about the dungeon scene
+export function registerDungeonSceneForCollision(dungeonScene) {
+  dungeonSceneRef = dungeonScene;
+}
+
+// Switch between overworld and dungeon collision mode
+export function setCollisionDungeonMode(isInDungeon) {
+  inDungeonSpace = !!isInDungeon;
+
+  // choose which colliders we are using
+  staticColliders = inDungeonSpace ? dungeonColliders : overworldColliders;
+
+  // and which scene to traverse for arrows
+  if (inDungeonSpace && dungeonSceneRef) {
+    sceneRef = dungeonSceneRef;
+  } else {
+    sceneRef = overworldSceneRef;
+  }
+}
+
+// Optionally set dungeon colliders in bulk
+export function setDungeonColliders(colliders = []) {
+  dungeonColliders = Array.isArray(colliders) ? colliders.slice() : [];
+  if (inDungeonSpace) {
+    staticColliders = dungeonColliders;
+  }
 }
 
 export function updateCollisionSystem(dt) {
   if (!TRef || !sceneRef || !playerRef || !playerRef.mesh) return;
 
-  if (!collisionEnabled) return;
+  if (!collisionEnabled || !playerRef || !playerRef.mesh || !playerCollisionEnabled) return;
 
   try {
     handlePlayerCollisions();
@@ -217,7 +267,23 @@ function removeArrow(arrow) {
   }
 }
 
-export function addStaticCollider(mesh) {
+export function addStaticCollider(mesh, isDungeon = false) {
   if (!mesh) return;
-  staticColliders.push(mesh);
+  if (isDungeon) {
+    dungeonColliders.push(mesh);
+    if (inDungeonSpace) {
+      staticColliders = dungeonColliders;
+    }
+  } else {
+    overworldColliders.push(mesh);
+    if (!inDungeonSpace) {
+      staticColliders = overworldColliders;
+    }
+  }
 }
+
+export function setPlayerCollisionEnabled(on) {
+  playerCollisionEnabled = !!on;
+  console.log("Player collision:", playerCollisionEnabled ? "ON" : "OFF");
+}
+

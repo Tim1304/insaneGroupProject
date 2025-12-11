@@ -82,10 +82,11 @@ export function updatePlayerStatusUI(dt) {
 
     const health = playerStatsRef.getHealth ? playerStatsRef.getHealth() : 100;
     const stamina = playerStatsRef.getStamina ? playerStatsRef.getStamina() : 100;
+    const maxHealth = playerStatsRef.getMaxHealth ? playerStatsRef.getMaxHealth() : 100;
 
-    const h = Math.max(0, Math.min(100, health));
+    const hPerc = Math.max(0, Math.min(100, (health / maxHealth) * 100));
     const s = Math.max(0, Math.min(100, stamina));
 
-    healthFill.style.width = `${h}%`;
+    healthFill.style.width = `${hPerc}%`;
     staminaFill.style.width = `${s}%`;
 }

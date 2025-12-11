@@ -24,6 +24,9 @@ import {
   updateCollisionSystem,
   addStaticCollider,
   setCollisionEnabled,
+  registerDungeonSceneForCollision,
+  setCollisionDungeonMode,
+  setDungeonColliders,
 } from "./systems/collisionSystem.js";
 import * as Gen from "./env/worldObjects.js";
 import { Dungeon } from "./env/Dungeon.js";
@@ -59,11 +62,13 @@ let inDungeon = false;
 let hasSpawnedDungeonMonsters = false;
 
 function spawnInitialDungeonMonsters() {
-  // difficulty = 1 for now, spawns around the player
   for (let i = 0; i < 3; i++) {
-    spawnRandomMonster(1);
+    // Use Dungeon's built-in helper
+    const pos = dungeon.getRandomSpawnPosition();
+    spawnRandomMonster(1, pos.x, pos.z);
   }
 }
+
 
 // --- Lights ---
 const ambientLight = new T.AmbientLight(0xffffff, 0.3);
@@ -91,7 +96,7 @@ initBattleSystem(scene, playerController, playerStats);
 initCollisionSystem(T, scene, playerController, mapInfo.walls || []);
 
 // TEMP: disable collision so we can walk into cave
-setCollisionEnabled(false);
+//setCollisionEnabled(false);
 
 // --------------------------
 // Environment / map layout
@@ -290,6 +295,29 @@ scene.add(new T.AxesHelper(5));
 const dungeon = new Dungeon();
 registerDungeonScene(dungeon);
 
+// Tell the collision system about the dungeon scene
+registerDungeonSceneForCollision(dungeon);
+
+// Build a list of dungeon wall meshes to use as colliders
+const dungeonWalls = [];
+const tempBox = new T.Box3();
+
+dungeon.traverse((obj) => {
+  if (!obj.isMesh) return;
+
+  // Approximate filter: treat tall meshes as walls, ignore flat floors
+  tempBox.setFromObject(obj);
+  const height = tempBox.max.y - tempBox.min.y;
+
+  if (height > 2.0) {
+    dungeonWalls.push(obj);
+  }
+});
+
+// Register dungeon walls as dungeon colliders
+setDungeonColliders(dungeonWalls);
+
+
 // Simple dungeon exit object
 const dungeonExitGeo = new T.BoxGeometry(2, 3, 0.5);
 const dungeonExitMat = new T.MeshStandardMaterial({
@@ -306,6 +334,7 @@ registerDungeonExit(dungeonExit);
 window.addEventListener("dungeon-enter-request", () => {
   inDungeon = true;
   activeScene = dungeon;
+  setCollisionDungeonMode(true);
   setInDungeonMode(true);
 
   if (playerController && playerController.mesh) {
@@ -328,7 +357,7 @@ window.addEventListener("dungeon-exit-request", () => {
   inDungeon = false;
   activeScene = scene;
   setInDungeonMode(false);
-
+  setCollisionDungeonMode(false);
   if (playerController && playerController.mesh) {
     // Return player near the dungeon entrance in overworld
     playerController.mesh.position.set(-7, 0, 8);

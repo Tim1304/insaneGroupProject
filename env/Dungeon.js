@@ -7,6 +7,9 @@ export class Dungeon extends T.Scene {
 
         const self = this;
 
+        // Valid tunnel cells where we can spawn monsters (center of each box segment)
+        this.spawnCells = [];
+
         // Lighting
         const ambientLight = new T.AmbientLight(0xffffff, 0.01);
         this.add(ambientLight);
@@ -48,6 +51,11 @@ export class Dungeon extends T.Scene {
             const floor = new T.Mesh(floorGeom, floorMat);
             floor.position.set(x, -0.25, z);
             self.add(floor);
+
+            // Mark this tunnel segment as a valid spawn cell
+            self.spawnCells.push({ x, z });
+
+
             // Walls
             let walls = new T.Group();
             const wall1 = new T.Mesh(wallGeom, wallMat);
@@ -180,4 +188,24 @@ export class Dungeon extends T.Scene {
         }
         this.add(finalWall);
     }
+    /**
+    * Returns a random point inside one of the tunnel cells, but a bit away from walls.
+    */
+    getRandomSpawnPosition() {
+        if (!this.spawnCells || this.spawnCells.length === 0) {
+            // Fallback: near origin
+            return new T.Vector3(0, 1, 0);
+        }
+
+        const idx = Math.floor(Math.random() * this.spawnCells.length);
+        const cell = this.spawnCells[idx];
+
+        // Walls are at ±4 from cell center, so stay comfortably inside (±3)
+        const jitterX = (Math.random() * 6) - 3; // [-3, 3]
+        const jitterZ = (Math.random() * 6) - 3; // [-3, 3]
+
+        return new T.Vector3(cell.x + jitterX, 1, cell.z + jitterZ);
+    }
+
 }
+

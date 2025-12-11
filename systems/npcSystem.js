@@ -118,14 +118,14 @@ function createNPCs() {
     team: null,
   });
 
-// --- Money Test NPC (Rich Guy) ---
-const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
-const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
-moneyMesh.position.set(2, 1, -3);
+  // --- Money Test NPC (Rich Guy) ---
+  const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
+  const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
+  moneyMesh.position.set(2, 1, -3);
 
-overworldSceneRef.add(moneyMesh);
+  overworldSceneRef.add(moneyMesh);
 
-npcs.push({
+  npcs.push({
     id: "npc_money",
     name: "Rich Guy",
     mesh: moneyMesh,
@@ -136,7 +136,7 @@ npcs.push({
     aiState: "idle",
     aiData: {},
     team: null,
-});
+  });
 
   // Bandit – melee
   const banditMat = new TRef.MeshStandardMaterial({ color: 0xaa3333 });
@@ -222,10 +222,21 @@ export function updateNPCSystem(dt) {
 
   const playerPos = playerRef.mesh.position;
 
-  // While in dungeon, we still want AI to run (for dungeon monsters),
-  // but overworld NPCs won't matter since they are on a different scene.
   for (const npc of npcs) {
     if (!npc || !npc.mesh) continue;
+
+    // Is this NPC part of the dungeon scene?
+    const isDungeonNPC =
+      dungeonSceneRef && npc.mesh.parent === dungeonSceneRef;
+
+    // Only update AI for NPCs in the *current* world.
+    if (inDungeonMode) {
+      // We are inside the dungeon → ignore overworld NPCs
+      if (!isDungeonNPC) continue;
+    } else {
+      // We are in the overworld → ignore dungeon NPCs
+      if (isDungeonNPC) continue;
+    }
 
     if (!npc.hostile) {
       npc.aiState = npc.aiState || "idle";
@@ -575,42 +586,58 @@ function findNearestTank(excludeNpc) {
 // Public helpers used by other systems
 // -------------------------------------------------------
 
+/**
+ * Force-spawn a dungeon monster at a specific X/Z position.
+ * Uses the same logic for type, AI, stats, mesh, etc.
+ */
+export function spawnDungeonMonsterAt(x, z, difficulty = 1) {
+  return spawnRandomMonster(difficulty, x, z);
+}
+
+
 export function getNPCs() {
   return npcs;
 }
 
 export function getNearestTalkableNPC(playerPosition, maxDistance) {
+  if (!playerPosition) return null;
+
+  // Normal NPC talk radius
+  const normalRangeSq = maxDistance * maxDistance;
+  // Slightly extended radius for entrance/exit so collision walls don't block interaction
+  const extendedRange = maxDistance + 3.0;
+  const extendedRangeSq = extendedRange * extendedRange;
+
   let best = null;
-  let bestDistSq = maxDistance * maxDistance;
+  let bestDistSq = normalRangeSq;
 
-  // In dungeon, only the exit is "talkable"
+  // --- DUNGEON MODE: only exit is talkable ---
   if (inDungeonMode) {
-    if (dungeonExitRef) {
-      const dx = dungeonExitRef.position.x - playerPosition.x;
-      const dy = dungeonExitRef.position.y - playerPosition.y;
-      const dz = dungeonExitRef.position.z - playerPosition.z;
-      const distSq = dx * dx + dy * dy + dz * dz;
+    if (!dungeonExitRef) return null;
 
-      if (distSq < bestDistSq) {
-        bestDistSq = distSq;
-        best = {
-          id: "dungeon_exit",
-          name: "Dungeon Exit",
-          mesh: dungeonExitRef,
-          talkable: true,
-          hostile: false,
-          isDungeonExit: true,
-          dialogId: null,
-        };
-      }
+    const dx = dungeonExitRef.position.x - playerPosition.x;
+    const dy = dungeonExitRef.position.y - playerPosition.y;
+    const dz = dungeonExitRef.position.z - playerPosition.z;
+    const distSq = dx * dx + dy * dy + dz * dz;
+
+    if (distSq <= extendedRangeSq) {
+      best = {
+        id: "dungeon_exit",
+        name: "Dungeon Exit",
+        mesh: dungeonExitRef,
+        talkable: true,
+        hostile: false,
+        isDungeonExit: true,
+        dialogId: null,
+      };
     }
 
     return best;
   }
 
-  // Overworld: NPCs + dungeon entrance
+  // --- OVERWORLD: normal talkable NPCs first ---
   for (const npc of npcs) {
-    if (!npc.talkable || !npc.mesh) continue;
+    if (!npc || !npc.talkable || !npc.mesh) continue;
 
     const dx = npc.mesh.position.x - playerPosition.x;
     const dy = npc.mesh.position.y - playerPosition.y;
@@ -623,13 +650,14 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
     }
   }
 
+  // --- Dungeon entrance: allow a larger radius so you can stand in front of the cave ---
   if (dungeonEntranceRef) {
     const dx = dungeonEntranceRef.position.x - playerPosition.x;
     const dy = dungeonEntranceRef.position.y - playerPosition.y;
     const dz = dungeonEntranceRef.position.z - playerPosition.z;
     const distSq = dx * dx + dy * dy + dz * dz;
 
-    if (distSq < bestDistSq) {
+    if (distSq <= extendedRangeSq && distSq < bestDistSq) {
       bestDistSq = distSq;
       best = {
         id: "dungeon_entrance",
@@ -645,6 +673,7 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
 
   return best;
 }
+
 
 export function setNPCHostile(npcId, hostile) {
   const npc = npcs.find((n) => n.id === npcId);
@@ -694,9 +723,23 @@ export function getInDungeonMode() {
   return inDungeonMode;
 }
 
+/**
+ * Optional helpers for other systems (like the player controller)
+ * to know which scene to attach things to.
+ */
+export function getDungeonSceneRef() {
+  return dungeonSceneRef;
+}
+
+export function getOverworldSceneRef() {
+  return overworldSceneRef;
+}
+
+
 // Monster generator: spawn a new hostile monster in the dungeon.
 // If dungeonSceneRef is missing, falls back to overworld (for safety/testing).
-export function spawnRandomMonster(difficulty = 1) {
+export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ = null) {
+
   if (!TRef || (!dungeonSceneRef && !overworldSceneRef)) return null;
 
   const parentScene = dungeonSceneRef || overworldSceneRef;
@@ -704,22 +747,31 @@ export function spawnRandomMonster(difficulty = 1) {
   const mat = new TRef.MeshStandardMaterial({ color: 0x993333 });
   const mesh = new TRef.Mesh(npcGeo, mat);
 
-  // Spawn near player (if we have a player), otherwise around origin.
-  let centerX = 0;
-  let centerZ = 0;
-  if (playerRef && playerRef.mesh) {
-    centerX = playerRef.mesh.position.x;
-    centerZ = playerRef.mesh.position.z;
+  // Decide spawn position
+  let spawnX, spawnZ;
+
+  if (overrideX !== null && overrideZ !== null) {
+    // Dungeon-safe forced position
+    spawnX = overrideX;
+    spawnZ = overrideZ;
+  } else {
+    // Original behavior: around the player
+    let centerX = 0;
+    let centerZ = 0;
+    if (playerRef && playerRef.mesh) {
+      centerX = playerRef.mesh.position.x;
+      centerZ = playerRef.mesh.position.z;
+    }
+
+    const radius = 6 + Math.random() * 6;
+    const angle = Math.random() * Math.PI * 2;
+    spawnX = centerX + Math.cos(angle) * radius;
+    spawnZ = centerZ + Math.sin(angle) * radius;
   }
 
-  const radius = 6 + Math.random() * 6;
-  const angle = Math.random() * Math.PI * 2;
-  mesh.position.set(
-    centerX + Math.cos(angle) * radius,
-    1,
-    centerZ + Math.sin(angle) * radius
-  );
+  mesh.position.set(spawnX, 1, spawnZ);
   parentScene.add(mesh);
+
 
   const id = `monster_${nextMonsterId++}`;
 

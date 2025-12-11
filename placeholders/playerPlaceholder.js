@@ -2,6 +2,8 @@
 
 // Player controller placeholder for testing camera, dialog, and UI.
 // Aiden will replace internals later, but should keep this API shape.
+import { getInDungeonMode, getDungeonSceneRef } from "../systems/npcSystem.js";
+import { setPlayerCollisionEnabled } from "../systems/collisionSystem.js";
 
 const KEY = {
   W: "KeyW",
@@ -14,6 +16,7 @@ const KEY = {
   SPACE: "Space",
 };
 
+let playerCollision = true;
 export function createPlayerController(T, scene, mapInfo, playerStats) {
   // --- Player visual (simple box) ---
   const playerGeo = new T.BoxGeometry(1, 2, 1);
@@ -35,6 +38,23 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   const keys = new Set();
   const moveSpeed = 6; // units per second
   const eyeHeight = 1.5;
+  // --- Sprinting ---
+  const sprintMultiplier = 1.25; // +25% speed
+  const sprintDrainPerSec = 20.0; // stamina bar drained per second while sprinting
+  const staminaRegenPerSec = 10.0; // regens per second when not sprinting
+  const staminaRegenDelay = 3.0; // delay until regen starts
+  let isSprinting = false;
+  let sprintCooldownTimer = 0.0; // counts time since sprint stopped
+
+  // --- Head bobbing (camera) ---
+  const bobEnabled = true;
+  const bobAmplitudeWalk = 0.06; // vertical bob amplitude 
+  const bobAmplitudeSprint = 0.12; // amplitude when sprinting
+  const bobBaseFreq = 3.5;
+  let bobTimer = 0.0;
+  let bobOffsetY = 0.0;
+  let wasMoving = false;
+  let lastMoveSpeed = moveSpeed;
 
   // --- Vertical jump
   let velocityY = 0; // units per second
@@ -79,6 +99,12 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       return;
     }
 
+    if (e.code === "KeyC") {
+      // Toggle player collision
+      playerCollision = !playerCollision;
+      setPlayerCollisionEnabled(playerCollision);
+    }
+
     if (e.code === KEY.DIGIT3) {
       // Bow only if owned
       if (playerStatsRef && typeof playerStatsRef.ownsWeapon === "function") {
@@ -104,6 +130,13 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       if (isGrounded) {
         velocityY = jumpStrength;
         isGrounded = false;
+        // records jumps for speed stat 
+        try {
+          if (playerStatsRef && typeof playerStatsRef.recordJump === 'function') {
+            playerStatsRef.recordJump();
+          }
+        } catch (err) {
+        }
       }
     }
   });
@@ -181,7 +214,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   function getEyePosition() {
     return new T.Vector3(
       player.position.x,
-      player.position.y + eyeHeight,
+      player.position.y + eyeHeight + bobOffsetY,
       player.position.z
     );
   }
@@ -208,15 +241,91 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
     const velocity = new T.Vector3(0, 0, 0);
 
+    const moving = keys.has(KEY.W) || keys.has(KEY.S) || keys.has(KEY.A) || keys.has(KEY.D);
+
     if (keys.has(KEY.W)) velocity.add(forward);
     if (keys.has(KEY.S)) velocity.sub(forward);
     if (keys.has(KEY.A)) velocity.add(right);
     if (keys.has(KEY.D)) velocity.sub(right);
 
+    // Sprint handling: require holding Shift and moving
+    const shiftPressed = keys.has("ShiftLeft") || keys.has("ShiftRight");
+    // Apply speed stat (10% per level above 1)
+    let speedLevel = 1;
+    try {
+      if (playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
+        speedLevel = Math.max(1, Number(playerStatsRef.getStatLevel('speed')) || 1);
+      }
+    } catch (err) {
+      speedLevel = 1;
+    }
+    const effectiveBaseSpeed = moveSpeed * (1 + 0.1 * (Math.max(0, speedLevel - 1)));
+    let currentSpeed = effectiveBaseSpeed;
+    if (playerStatsRef && shiftPressed && moving && playerStatsRef.getStamina && playerStatsRef.setStamina) {
+      const curStam = playerStatsRef.getStamina();
+      const canSprint = curStam > 0;
+      if (canSprint && shiftPressed && moving) {
+        // start/continue sprinting
+        isSprinting = true;
+        sprintCooldownTimer = 0;
+        currentSpeed = effectiveBaseSpeed * sprintMultiplier;
+        // drains stamina
+        const newStam = curStam - sprintDrainPerSec * dt;
+        playerStatsRef.setStamina(newStam);
+        // if the stamina is depleted, stop sprinting
+        if (playerStatsRef.getStamina() <= 0) {
+          isSprinting = false;
+          sprintCooldownTimer = 0;
+        }
+      }
+    }
+
+    if (isSprinting && (!shiftPressed || !moving)) {
+      isSprinting = false;
+      sprintCooldownTimer = 0; // start cooldown before regen
+    }
+
+    // If player is not sprinting: regen after cooldown regardless of current stamina
+    if (!isSprinting && playerStatsRef && playerStatsRef.getStamina && playerStatsRef.setStamina) {
+      sprintCooldownTimer += dt;
+      if (sprintCooldownTimer >= staminaRegenDelay) {
+        const cur = playerStatsRef.getStamina();
+        if (cur < 100) {
+          playerStatsRef.setStamina(cur + staminaRegenPerSec * dt);
+        }
+      }
+    }
+
     if (velocity.lengthSq() > 0) {
-      velocity.normalize().multiplyScalar(moveSpeed * dt);
+      velocity.normalize().multiplyScalar(currentSpeed * dt);
       player.position.add(velocity);
       clampToBounds(player.position);
+    }
+
+    // bobbing state
+    const currentlyMoving = velocity.lengthSq() > 0;
+    wasMoving = currentlyMoving;
+    lastMoveSpeed = currentSpeed;
+  }
+
+  function updateBobbing(dt) {
+    if (!bobEnabled) {
+      bobOffsetY = 0;
+      return;
+    }
+
+    // bob only when moving and grounded
+    const moving = wasMoving && isGrounded;
+
+    if (moving) {
+      // bob frequency scales with speed
+      const freq = bobBaseFreq * (lastMoveSpeed / moveSpeed);
+      const amp = isSprinting ? bobAmplitudeSprint : bobAmplitudeWalk;
+      bobTimer += dt * freq;
+      bobOffsetY = Math.sin(bobTimer * Math.PI * 2) * amp;
+    } else {
+      bobOffsetY = bobOffsetY * Math.max(0, 1 - 10 * dt);
+      if (bobTimer > 1e6) bobTimer = bobTimer % 1.0;
     }
   }
 
@@ -258,6 +367,16 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       range = 2.5 / 2; // shorter reach
     }
 
+    // apply strength stat for sword damage (10% per level above 1)
+    if (weapon === 'sword' && playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
+      try {
+        const lvl = Number(playerStatsRef.getStatLevel('strength')) || 1;
+        const mult = 1 + 0.1 * Math.max(0, lvl - 1);
+        dmg = dmg * mult;
+      } catch (err) {
+      }
+    }
+
     range = range * 2; // fudge factor
 
     const dist = player.position.distanceTo(dummy.position);
@@ -275,7 +394,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
           detail: {
             pos: player.position.clone(),
             range,
-            dmg,
+              dmg,
           },
         })
       );
@@ -322,7 +441,25 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     arrow.position.copy(spawnPos);
     arrow.lookAt(spawnPos.clone().add(dir));
 
-    scene.add(arrow);
+    // Put the arrow into the *active* scene:
+    // - overworld when we are outside
+    // - dungeon scene when we are inside
+    let parentScene = scene;
+    try {
+      if (typeof getInDungeonMode === "function" && getInDungeonMode()) {
+        const dungeonScene =
+          typeof getDungeonSceneRef === "function"
+            ? getDungeonSceneRef()
+            : null;
+        if (dungeonScene) {
+          parentScene = dungeonScene;
+        }
+      }
+    } catch (err) {
+      // if anything goes wrong, we just fall back to the overworld scene
+    }
+
+    parentScene.add(arrow);
 
     arrow.userData = arrow.userData || {};
     arrow.userData.isPlayerArrow = true;
@@ -340,14 +477,24 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
           detail: {
             pos: eye.clone(),
             dir: dir.clone(),
-            dmg: 15,
+            dmg: (function() {
+              let base = 15;
+              try {
+                if (playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
+                  const lvl = Number(playerStatsRef.getStatLevel('handEye')) || 1;
+                  const mult = 1 + 0.1 * Math.max(0, lvl - 1);
+                  base = base * mult;
+                }
+              } catch (err) {}
+              return base;
+            })(),
           },
         })
       );
     } catch (err) {
-      // ignore
     }
   }
+
 
   function updateArrows(dt) {
     const toRemove = [];
@@ -386,6 +533,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   function update(dt) {
     updateVertical(dt);
     updateMovement(dt);
+    updateBobbing(dt);
     updateArrows(dt);
   }
 
