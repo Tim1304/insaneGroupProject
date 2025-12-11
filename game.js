@@ -224,7 +224,7 @@ function generateOverworld() {
 }
 
 // Build the overworld after systems are ready
-generateOverworld();
+//generateOverworld();
 
 // --- Resize handling ---
 window.addEventListener("resize", () => {
@@ -337,9 +337,8 @@ window.addEventListener("dungeon-exit-request", () => {
   camera.lookAt(0, 0, 0);
 });
 
-
 // Tavern enter
-window.addEventListener("tavern-enter-request", () => {
+// window.addEventListener("tavern-enter-request", () => {
   // We are not in dungeon anymore
   inDungeon = false;
   inTavern = true;
@@ -375,8 +374,7 @@ window.addEventListener("tavern-enter-request", () => {
       );
     }
   })();
-});
-
+// });
 
 // --- Main loop ---
 function animate(time) {

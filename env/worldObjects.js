@@ -1002,3 +1002,22 @@ export class Dagger extends T.Group {
         return true;
     }
 }
+
+export class Table extends T.Group {
+    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
+        super();
+
+        let loader = new GLTFLoader();
+        let table;
+        loader.load('./env/readyMades/table.glb', (gltf) => {
+            table = gltf.scene;
+            table.scale.set(0.5, 0.5, 0.5);
+            table.position.y += 0.5;
+            this.add(table);
+        });
+
+        // Place and rescale based on passed params
+        this.position.copy(position);
+        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
+    }
+}
