@@ -254,31 +254,30 @@ function startBattle(npcIdParam) {
  */
 function endBattle(won) {
   console.log("Battle ended. Player won:", !!won);
-
-  let npc = null;
-  if (enemyId) {
-    npc = getNPCs().find((n) => n.id === enemyId) || null;
-  }
-
-  // Rewards + difficulty scaling + monster generator
-  if (won && npc) {
-    grantEnemyDefeatRewards(npc);
-  }
-
   removeSwordButton();
   removeFistButton();
   highlightEnemyMesh(false);
 
-  if (won && npc) {
-    if (npc.mesh && sceneRef) sceneRef.remove(npc.mesh);
-    npc.talkable = false;
-    npc.hostile = false;
+  if (won && enemyId) {
+    const npc = getNPCs().find((n) => n.id === enemyId);
+    if (npc) {
+      if (npc.mesh) {
+        // Remove from whatever scene actually owns this mesh (overworld or dungeon)
+        if (npc.mesh.parent) {
+          npc.mesh.parent.remove(npc.mesh);
+        }
+        npc.mesh = null;
+      }
+      npc.talkable = false;
+      npc.hostile = false;
+    }
   }
 
   inBattle = false;
   enemyId = null;
   enemyHP = 0;
 }
+
 
 // --- enemy damage & rewards ---
 

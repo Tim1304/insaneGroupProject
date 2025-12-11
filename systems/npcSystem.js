@@ -118,14 +118,14 @@ function createNPCs() {
     team: null,
   });
 
-// --- Money Test NPC (Rich Guy) ---
-const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
-const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
-moneyMesh.position.set(2, 1, -3);
+  // --- Money Test NPC (Rich Guy) ---
+  const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
+  const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
+  moneyMesh.position.set(2, 1, -3);
 
-overworldSceneRef.add(moneyMesh);
+  overworldSceneRef.add(moneyMesh);
 
-npcs.push({
+  npcs.push({
     id: "npc_money",
     name: "Rich Guy",
     mesh: moneyMesh,
@@ -136,7 +136,7 @@ npcs.push({
     aiState: "idle",
     aiData: {},
     team: null,
-});
+  });
 
   // Bandit – melee
   const banditMat = new TRef.MeshStandardMaterial({ color: 0xaa3333 });
@@ -586,42 +586,58 @@ function findNearestTank(excludeNpc) {
 // Public helpers used by other systems
 // -------------------------------------------------------
 
+/**
+ * Force-spawn a dungeon monster at a specific X/Z position.
+ * Uses the same logic for type, AI, stats, mesh, etc.
+ */
+export function spawnDungeonMonsterAt(x, z, difficulty = 1) {
+  return spawnRandomMonster(difficulty, x, z);
+}
+
+
 export function getNPCs() {
   return npcs;
 }
 
 export function getNearestTalkableNPC(playerPosition, maxDistance) {
+  if (!playerPosition) return null;
+
+  // Normal NPC talk radius
+  const normalRangeSq = maxDistance * maxDistance;
+  // Slightly extended radius for entrance/exit so collision walls don't block interaction
+  const extendedRange = maxDistance + 3.0;
+  const extendedRangeSq = extendedRange * extendedRange;
+
   let best = null;
-  let bestDistSq = maxDistance * maxDistance;
+  let bestDistSq = normalRangeSq;
 
-  // In dungeon, only the exit is "talkable"
+  // --- DUNGEON MODE: only exit is talkable ---
   if (inDungeonMode) {
-    if (dungeonExitRef) {
-      const dx = dungeonExitRef.position.x - playerPosition.x;
-      const dy = dungeonExitRef.position.y - playerPosition.y;
-      const dz = dungeonExitRef.position.z - playerPosition.z;
-      const distSq = dx * dx + dy * dy + dz * dz;
+    if (!dungeonExitRef) return null;
 
-      if (distSq < bestDistSq) {
-        bestDistSq = distSq;
-        best = {
-          id: "dungeon_exit",
-          name: "Dungeon Exit",
-          mesh: dungeonExitRef,
-          talkable: true,
-          hostile: false,
-          isDungeonExit: true,
-          dialogId: null,
-        };
-      }
+    const dx = dungeonExitRef.position.x - playerPosition.x;
+    const dy = dungeonExitRef.position.y - playerPosition.y;
+    const dz = dungeonExitRef.position.z - playerPosition.z;
+    const distSq = dx * dx + dy * dy + dz * dz;
+
+    if (distSq <= extendedRangeSq) {
+      best = {
+        id: "dungeon_exit",
+        name: "Dungeon Exit",
+        mesh: dungeonExitRef,
+        talkable: true,
+        hostile: false,
+        isDungeonExit: true,
+        dialogId: null,
+      };
     }
 
     return best;
   }
 
-  // Overworld: NPCs + dungeon entrance
+  // --- OVERWORLD: normal talkable NPCs first ---
   for (const npc of npcs) {
-    if (!npc.talkable || !npc.mesh) continue;
+    if (!npc || !npc.talkable || !npc.mesh) continue;
 
     const dx = npc.mesh.position.x - playerPosition.x;
     const dy = npc.mesh.position.y - playerPosition.y;
@@ -634,13 +650,14 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
     }
   }
 
+  // --- Dungeon entrance: allow a larger radius so you can stand in front of the cave ---
   if (dungeonEntranceRef) {
     const dx = dungeonEntranceRef.position.x - playerPosition.x;
     const dy = dungeonEntranceRef.position.y - playerPosition.y;
     const dz = dungeonEntranceRef.position.z - playerPosition.z;
     const distSq = dx * dx + dy * dy + dz * dz;
 
-    if (distSq < bestDistSq) {
+    if (distSq <= extendedRangeSq && distSq < bestDistSq) {
       bestDistSq = distSq;
       best = {
         id: "dungeon_entrance",
@@ -656,6 +673,7 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
 
   return best;
 }
+
 
 export function setNPCHostile(npcId, hostile) {
   const npc = npcs.find((n) => n.id === npcId);
@@ -720,100 +738,68 @@ export function getOverworldSceneRef() {
 
 // Monster generator: spawn a new hostile monster in the dungeon.
 // If dungeonSceneRef is missing, falls back to overworld (for safety/testing).
-export function spawnRandomMonster(difficulty = 1) {
+export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ = null) {
+
   if (!TRef || (!dungeonSceneRef && !overworldSceneRef)) return null;
 
-  // If we have a dungeon scene, always spawn dungeon monsters there.
   const parentScene = dungeonSceneRef || overworldSceneRef;
-
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
-
-  // --- Randomly pick an AI type for this monster ---
-  const roll = Math.random();
-  let type = "melee";
-  if (roll < 0.33) {
-    type = "melee";
-  } else if (roll < 0.66) {
-    type = "bow";
-  } else {
-    type = "tank";
-  }
-
-  let color = 0x993333; // melee = reddish
-  if (type === "bow") color = 0x33aa55;      // archer = green-ish
-  if (type === "tank") color = 0x555588;     // tank = bluish
-
-  const mat = new TRef.MeshStandardMaterial({ color });
+  const mat = new TRef.MeshStandardMaterial({ color: 0x993333 });
   const mesh = new TRef.Mesh(npcGeo, mat);
 
-  // Spawn near player (if we have a player), otherwise around origin.
-  let centerX = 0;
-  let centerZ = 0;
-  if (playerRef && playerRef.mesh) {
-    centerX = playerRef.mesh.position.x;
-    centerZ = playerRef.mesh.position.z;
+  // Decide spawn position
+  let spawnX, spawnZ;
+
+  if (overrideX !== null && overrideZ !== null) {
+    // Dungeon-safe forced position
+    spawnX = overrideX;
+    spawnZ = overrideZ;
+  } else {
+    // Original behavior: around the player
+    let centerX = 0;
+    let centerZ = 0;
+    if (playerRef && playerRef.mesh) {
+      centerX = playerRef.mesh.position.x;
+      centerZ = playerRef.mesh.position.z;
+    }
+
+    const radius = 6 + Math.random() * 6;
+    const angle = Math.random() * Math.PI * 2;
+    spawnX = centerX + Math.cos(angle) * radius;
+    spawnZ = centerZ + Math.sin(angle) * radius;
   }
 
-  const radius = 6 + Math.random() * 6;
-  const angle = Math.random() * Math.PI * 2;
-  mesh.position.set(
-    centerX + Math.cos(angle) * radius,
-    1,
-    centerZ + Math.sin(angle) * radius
-  );
+  mesh.position.set(spawnX, 1, spawnZ);
   parentScene.add(mesh);
+
 
   const id = `monster_${nextMonsterId++}`;
 
-  // Base tuning; tweak per-type below.
-  let moveSpeed = MELEE_MOVE_SPEED + 0.3 * (difficulty - 1);
-  let damage = MELEE_DAMAGE + 2 * (difficulty - 1);
-  let aiState = "chase";
-  const aiData = {};
-
-  if (type === "melee") {
-    aiData.moveSpeed = moveSpeed;
-    aiData.meleeDamage = damage;
-  } else if (type === "bow") {
-    aiState = "aim";
-    aiData.moveSpeedRun = BOW_MOVE_SPEED_RUN + 0.2 * (difficulty - 1);
-    aiData.moveSpeedAim = BOW_MOVE_SPEED_AIM;
-    aiData.shotCooldown = Math.max(
-      0.5,
-      BOW_SHOT_COOLDOWN - 0.05 * (difficulty - 1)
-    );
-  } else if (type === "tank") {
-    aiState = "idle";
-    aiData.moveSpeed = TANK_MOVE_SPEED + 0.2 * (difficulty - 1);
-    aiData.meleeDamage = TANK_DAMAGE + 3 * (difficulty - 1);
-    damage = aiData.meleeDamage;
-  }
+  const moveSpeed = MELEE_MOVE_SPEED + 0.3 * (difficulty - 1);
+  const damage = MELEE_DAMAGE + 2 * (difficulty - 1);
 
   const npc = {
     id,
-    name:
-      type === "bow"
-        ? "Dungeon Archer"
-        : type === "tank"
-        ? "Dungeon Tank"
-        : "Dungeon Monster",
+    name: "Dungeon Monster",
     mesh,
     talkable: false,
     hostile: true,
     dialogId: null,
-    type,
-    aiState,
-    aiData,
+    type: "melee",
+    aiState: "chase",
+    aiData: {
+      moveSpeed,
+      meleeDamage: damage,
+    },
     elite: difficulty >= 3,
     team: null,
   };
 
   npcs.push(npc);
   console.log(
-    `[NPC SYSTEM] Spawned dungeon ${type} ${id} (difficulty ${difficulty}, moveSpeed=${moveSpeed.toFixed(
+    `[NPC SYSTEM] Spawned dungeon monster ${id} (difficulty ${difficulty}, moveSpeed=${moveSpeed.toFixed(
       2
     )}, dmg=${damage}).`
   );
   return npc;
 }
-
