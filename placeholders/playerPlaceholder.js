@@ -586,7 +586,6 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     updateBobbing(dt);
     updateArrows(dt);
     player.rotation.y = Math.atan2(getForwardDirection().x, getForwardDirection().z);
-    weaponRoot.rotation.x = - pitch;
   }
 
   return {
