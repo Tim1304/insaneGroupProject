@@ -426,23 +426,182 @@ export class Rock extends T.Group {
     }
 }
 
-export class Tavern extends T.Group {
+export class House extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
-        this.position.copy(position);
-        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
-    }
-}
 
-export class SmallHouse extends T.Group {
-    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
-        super();
+        let roof = new T.Group();
+
+        let wallWindowTexture = new T.TextureLoader().load('./env/textures/house-window.jpg');
+        let wallDoorTexture = new T.TextureLoader().load('./env/textures/house-door.jpg');
+        let roofTexture = new T.TextureLoader().load('./env/textures/house-roof.jpg');
+        let gableTexture = new T.TextureLoader().load('./env/textures/house-gable.jpg');
+        gableTexture.wrapT = T.RepeatWrapping;
+        gableTexture.wrapS = T.RepeatWrapping;
+        roofTexture.wrapS = T.RepeatWrapping;
+        roofTexture.wrapT = T.RepeatWrapping;
+        roofTexture.repeat.set(1, 1);
+
+        // Base
+        let baseGeometry = new T.BoxGeometry(7, 4, 7);
+
+        let baseMaterials = [
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallDoorTexture })
+        ];
+
+        let base = new T.Mesh(baseGeometry, baseMaterials);
+        base.position.y += 2;
+        this.add(base);
+
+        // Roof
+        let roofGeometry = new T.BufferGeometry();
+        let roofVertices = new Float32Array([
+            -3.5, 4, -3.5,
+            3.5, 4, -3.5,
+            -3.5, 4, 3.5,
+            3.5, 4, 3.5,
+            0, 6, -3.5,
+            0, 6, 3.5,
+            0, 6, -4.5,
+            0, 6, 4.5
+        ]);
+        roofGeometry.setAttribute("position", new T.BufferAttribute(roofVertices, 3));
+        roofGeometry.setIndex([
+            //4, 1, 0,
+            //2, 3, 5,
+            4, 0, 2,
+            4, 5, 1,
+            3, 1, 5,
+            2, 5, 4,
+            4, 1, 6,
+            0, 4, 6,
+            2, 7, 5,
+            3, 5, 7
+        ]);
+        roofGeometry.computeVertexNormals();
+        let uvs = new Float32Array([
+            0, 0,
+            0, 2,
+            2, 0,
+            2, 2,
+            0, 1,
+            2, 1,
+            -0.22, 1,
+            2.22, 1
+        ]);
+        roofGeometry.setAttribute("uv", new T.BufferAttribute(uvs, 2));
+        let roofMaterial = new T.MeshStandardMaterial({ map: roofTexture, wireframe: false, side: T.DoubleSide });
+        let roofMesh = new T.Mesh(roofGeometry, roofMaterial);
+        roof.add(roofMesh);
+
+        let gableGeometry = new T.BufferGeometry();
+        let gableVertices = new Float32Array([
+            0, 6, -3.5,
+            3.5, 4, -3.5,
+            -3.5, 4, -3.5,
+            0, 6, 3.5,
+            -3.5, 4, 3.5,
+            3.5, 4, 3.5
+        ]);
+
+        gableGeometry.setAttribute("position", new T.BufferAttribute(gableVertices, 3));
+        gableGeometry.setIndex([
+            0, 1, 2,
+            3, 5, 4
+        ]);
+        gableGeometry.computeVertexNormals();
+        let uvs2 = new Float32Array([
+            0.5, 0.92,
+            0, 0.3,
+            1, 0.3,
+            0.5, 1.92,
+            0, 1.3,
+            1, 1.3
+        ]);
+
+        gableGeometry.setAttribute("uv", new T.BufferAttribute(uvs2, 2));
+        let gableMaterial = new T.MeshStandardMaterial({ map: gableTexture, wireframe: false, side: T.DoubleSide });
+        let gableMesh = new T.Mesh(gableGeometry, gableMaterial);
+        roof.add(gableMesh);
+        this.add(roof);
+
+        // Place and rescale based on passed params
         this.position.copy(position);
         this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
     }
 }
 
 export class LargeHouse extends T.Group {
+    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
+        super();
+
+        let roof = new T.Group();
+
+        let wallWindowTexture = new T.TextureLoader().load('./env/textures/red-window.jpg');
+        let wallDoorTexture = new T.TextureLoader().load('./env/textures/red-door.jpg');
+        let roofTexture = new T.TextureLoader().load('./env/textures/house-roof.jpg');
+        roofTexture.wrapS = T.RepeatWrapping;
+        roofTexture.wrapT = T.RepeatWrapping;
+        roofTexture.repeat.set(1, 1);
+
+        // Base
+        let baseGeometry = new T.BoxGeometry(9, 4, 9);
+
+        let baseMaterials = [
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallWindowTexture }),
+            new T.MeshStandardMaterial({ map: wallDoorTexture })
+        ];
+
+        let base = new T.Mesh(baseGeometry, baseMaterials);
+        base.position.y += 2;
+        this.add(base);
+
+        // Roof
+        let roofGeometry = new T.BufferGeometry();
+        let roofVertices = new Float32Array([
+            -4.5, 4, -4.5,
+            4.5, 4, -4.5,
+            -4.5, 4, 4.5,
+            4.5, 4, 4.5,
+            0, 8, 0
+        ]);
+        roofGeometry.setAttribute("position", new T.BufferAttribute(roofVertices, 3));
+        roofGeometry.setIndex([
+            0, 2, 4,
+            0, 4, 1,
+            2, 3, 4,
+            1, 4, 3
+        ]);
+        roofGeometry.computeVertexNormals();
+        let uvs = new Float32Array([
+            0, 0,
+            0, 2,
+            2, 0,
+            2, 2,
+            1, 1
+        ]);
+        roofGeometry.setAttribute("uv", new T.BufferAttribute(uvs, 2));
+        let roofMaterial = new T.MeshStandardMaterial({ map: roofTexture, wireframe: false, side: T.DoubleSide });
+        let roofMesh = new T.Mesh(roofGeometry, roofMaterial);
+        roof.add(roofMesh);
+        this.add(roof);
+
+        // Place and rescale based on passed params
+        this.position.copy(position);
+        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
+    }
+}
+
+export class Tavern extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
         this.position.copy(position);

@@ -37,24 +37,8 @@ document.getElementById("div1").appendChild(renderer.domElement);
 // --- Scene & camera ---
 const scene = new T.Scene();
 
-// Sample environment objects
-const birch = new Gen.Birch(new T.Vector3(5, 0, 5), 1);
-scene.add(birch);
-const spruce = new Gen.Spruce(new T.Vector3(5, 0, 10), 1.5);
-scene.add(spruce);
-const rock = new Gen.Rock(new T.Vector3(10, 0, 5), 2);
-scene.add(rock);
-const well = new Gen.Well(new T.Vector3(10, 0, 10), 1);
-scene.add(well);
-const oak = new Gen.Oak(new T.Vector3(0, 0, 10), 1.2);
-scene.add(oak);
-const bush = new Gen.Bush(new T.Vector3(-3, 0, 10), 1.3);
-scene.add(bush);
-const barrel = new Gen.Barrel(new T.Vector3(0, 0, 5), 1);
-scene.add(barrel);
-
 // Dungeon entrance (overworld)
-let dungeonEntrance = new Gen.DungeonEntrance(new T.Vector3(-7, -3, 8), 7);
+let dungeonEntrance = new Gen.DungeonEntrance(new T.Vector3(0, -3, 30), 7);
 dungeonEntrance.rotateY(Math.PI / 1.2);
 scene.add(dungeonEntrance);
 registerDungeonEntrance(dungeonEntrance);
@@ -109,15 +93,169 @@ initCollisionSystem(T, scene, playerController, mapInfo.walls || []);
 // TEMP: disable collision so we can walk into cave
 setCollisionEnabled(false);
 
-// Register world objects as static colliders
-addStaticCollider(birch);
-addStaticCollider(spruce);
-addStaticCollider(rock);
-addStaticCollider(well);
-addStaticCollider(oak);
-addStaticCollider(bush);
-addStaticCollider(barrel);
-addStaticCollider(dungeonEntrance);
+// --------------------------
+// Environment / map layout
+// --------------------------
+
+// All objects that have animateLeaves(dt)
+const animatedEnvironment = [];
+
+/**
+ * Register a foliage object that exposes animateLeaves(dt)
+ * so we can update it centrally in the main loop.
+ * @param {any} obj
+ */
+function registerAnimatedFoliage(obj) {
+  if (obj && typeof obj.animateLeaves === "function") {
+    animatedEnvironment.push(obj);
+  }
+}
+
+/**
+ * Simple random helper in [min, max]
+ */
+function randomInRange(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+/**
+ * Create a mixed tree cluster (Birch/Spruce/Oak/Bush/Boulder)
+ * @param {number} radius
+ * @param {number} count
+ */
+function createTreeCluster(radius, numTrees) {
+  let count = 0;
+  while (count < numTrees) {
+    const angle = Math.random() * Math.PI * 2;
+    // Determine on which side of the exclusion circle the tree will be placed
+    const horiz = Math.random() < 0.5 ? 1 : -1;
+    let x = randomInRange(-50, 50);
+    let z = randomInRange(-50, 50);
+    if (Math.hypot(x, z) > radius) {
+      const type = Math.floor(Math.random() * 5); // 0 = Birch, 1 = Spruce, 2 = Oak, 3 = Bush, 4 = Boulder
+      const pos = new T.Vector3(x, 0, z);
+      const scale = 0.8 + Math.random() * 0.7;
+      let tree;
+
+      if (type === 0) {
+        tree = new Gen.Birch(pos, scale);
+      } else if (type === 1) {
+        tree = new Gen.Spruce(pos, scale);
+      } else if (type === 2) {
+        tree = new Gen.Oak(pos, scale);
+      } else if (type === 3) {
+        tree = new Gen.Bush(pos, scale);
+      } else {
+        tree = new Gen.Rock(pos, scale);
+      }
+
+      tree.rotateY(Math.random() * Math.PI * 2);
+      scene.add(tree);
+      registerAnimatedFoliage(tree);
+      addStaticCollider(tree);
+
+      count++;
+    }
+  }
+}
+
+/**
+ * Create a small village with houses, a central well, and barrels.
+ */
+function createVillage() {
+  // Houses around the center, rotated for a natural look
+  const house1 = new Gen.House(new T.Vector3(-10, 0, 0), 1);
+  house1.rotateY(Math.PI / 4);
+  scene.add(house1);
+  addStaticCollider(house1);
+
+  const house2 = new Gen.House(new T.Vector3(10, 0, 6), 1);
+  house2.rotateY(Math.PI / 2);
+  scene.add(house2);
+  addStaticCollider(house2);
+
+  const largeHouse = new Gen.LargeHouse(new T.Vector3(0, 0, -8), 1);
+  largeHouse.rotateY(Math.PI);
+  scene.add(largeHouse);
+  addStaticCollider(largeHouse);
+
+  // Central well
+  const well = new Gen.Well(new T.Vector3(0, 0, 7), 1);
+  scene.add(well);
+  addStaticCollider(well);
+
+  // Barrels scattered around the well
+  for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI * 2 + Math.random() * 0.3;
+    const r = 2 + Math.random();
+    const pos = new T.Vector3(Math.cos(angle) * r, 0, Math.sin(angle) * r + 7);
+    const barrel = new Gen.Barrel(pos, 1);
+    barrel.rotateY(Math.random() * Math.PI * 2);
+    scene.add(barrel);
+    addStaticCollider(barrel);
+  }
+}
+
+/**
+ * Scatter rocks (boulders) and bushes across the map, avoiding the village center.
+ */
+function scatterRocksAndBushes() {
+  const villageCenterX = -15;
+  const villageCenterZ = -10;
+  const villageAvoidRadius = 8;
+
+  // Rocks
+  for (let i = 0; i < 18; i++) {
+    const x = randomInRange(-45, 45);
+    const z = randomInRange(-45, 45);
+    if (Math.hypot(x - villageCenterX, z - villageCenterZ) < villageAvoidRadius) {
+      continue;
+    }
+
+    const rock = new Gen.Rock(new T.Vector3(x, 0, z), 0.8 + Math.random() * 1.2);
+    rock.rotateY(Math.random() * Math.PI * 2);
+    scene.add(rock);
+    addStaticCollider(rock);
+  }
+
+  // Bushes
+  for (let i = 0; i < 25; i++) {
+    const x = randomInRange(-45, 45);
+    const z = randomInRange(-45, 45);
+    if (Math.hypot(x - villageCenterX, z - villageCenterZ) < villageAvoidRadius) {
+      continue;
+    }
+
+    const bush = new Gen.Bush(
+      new T.Vector3(x, 0, z),
+      0.8 + Math.random() * 0.8
+    );
+    bush.rotateY(Math.random() * Math.PI * 2);
+    scene.add(bush);
+    registerAnimatedFoliage(bush);
+    addStaticCollider(bush);
+  }
+}
+
+/**
+ * Generate the overworld layout: forest, village, scattered rocks/bushes.
+ */
+function generateOverworld() {
+  // Forest patches
+  createTreeCluster(15, 300);
+
+  // Village with well and barrels
+  createVillage();
+
+  // Scattered boulders and bushes across the map
+  //scatterRocksAndBushes();
+
+  // Dungeon entrance collider
+  addStaticCollider(dungeonEntrance);
+}
+
+// Build the overworld after systems are ready
+generateOverworld();
 
 // --- Resize handling ---
 window.addEventListener("resize", () => {
@@ -213,11 +351,8 @@ function animate(time) {
   updateCollisionSystem(dt);
   updateUIManager(dt);
 
-  // Ambient animations
-  oak.animateLeaves(dt);
-  spruce.animateLeaves(dt);
-  birch.animateLeaves(dt);
-  bush.animateLeaves(dt);
+  // Ambient foliage animations (trees, bushes)
+  animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
 
   // Skybox color shift
   timeSinceLastSkybox += dt;
