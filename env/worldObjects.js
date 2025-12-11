@@ -714,6 +714,7 @@ export class Hand extends T.Group {
         let action = mixer.clipAction(clip());
         action.play();
 
+        this.action = action;
         this.mixer = mixer;
     }
 
@@ -724,10 +725,9 @@ export class Hand extends T.Group {
 
         if (this.totalTime >= this.swingDuration) {
             this.totalTime = 0;
-            console.log("TRIGGERED!!!!!!!!!!");
+            this.action?.play();
             return false;
         }
-        console.log("ABOUT TO ANIMATE");
         this.mixer.update(cappedDt);
         return true;
     }
@@ -768,6 +768,7 @@ export class Bow extends T.Group {
         let action = mixer.clipAction(clip());
         action.play();
 
+        this.action = action;
         this.mixer = mixer;
     }
 
@@ -778,10 +779,9 @@ export class Bow extends T.Group {
 
         if (this.totalTime >= this.swingDuration) {
             this.totalTime = 0;
-            console.log("TRIGGERED!!!!!!!!!!");
+            this.action?.play();
             return false;
         }
-        console.log("ABOUT TO ANIMATE");
         this.mixer.update(cappedDt);
         return true;
     }
