@@ -90,22 +90,29 @@ function createDialogBox() {
 function setupEventListeners() {
     // NPC in range -> show "Press E to talk"
     window.addEventListener("dialog-availability-show", (e) => {
-    if (!promptContainer) return;
+        if (!promptContainer) return;
 
-    const { npcName, isDungeonEntrance, isDungeonExit } = e.detail || {};
+        const {
+            npcName,
+            isDungeonEntrance,
+            isDungeonExit,
+            isTavernEntrance,
+        } = e.detail || {};
 
-    if (isDungeonEntrance) {
-        promptContainer.textContent = "Press E to enter the dungeon";
-    } else if (isDungeonExit) {
-        promptContainer.textContent = "Press E to leave the dungeon";
-    } else {
-        promptContainer.textContent = npcName
-            ? `Press E to talk to ${npcName}`
-            : "Press E to talk";
-    }
+        if (isDungeonEntrance) {
+            promptContainer.textContent = "Press E to enter the dungeon";
+        } else if (isDungeonExit) {
+            promptContainer.textContent = "Press E to leave the dungeon";
+        } else if (isTavernEntrance) {
+            promptContainer.textContent = "Press E to enter the tavern";
+        } else {
+            promptContainer.textContent = npcName
+                ? `Press E to talk to ${npcName}`
+                : "Press E to talk";
+        }
 
-    promptContainer.style.display = "block";
-});
+        promptContainer.style.display = "block";
+    });
 
     // NPC not in range -> hide prompt
     window.addEventListener("dialog-availability-hide", () => {

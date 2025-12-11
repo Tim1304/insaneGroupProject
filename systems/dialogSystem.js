@@ -206,7 +206,7 @@ function tryStartDialog() {
   const npc = getNearestTalkableNPC(playerPos, TALK_RANGE);
   if (!npc) return;
 
-  // Dungeon entrance / exit act as special interactables
+  // Dungeon / tavern entrance / exit act as special interactables
   if (npc.isDungeonEntrance) {
     window.dispatchEvent(
       new CustomEvent("dungeon-enter-request", {
@@ -222,6 +222,18 @@ function tryStartDialog() {
   if (npc.isDungeonExit) {
     window.dispatchEvent(
       new CustomEvent("dungeon-exit-request", {
+        detail: {
+          sourceId: npc.id,
+          sourceName: npc.name,
+        },
+      })
+    );
+    return;
+  }
+
+  if (npc.isTavernEntrance) {
+    window.dispatchEvent(
+      new CustomEvent("tavern-enter-request", {
         detail: {
           sourceId: npc.id,
           sourceName: npc.name,
@@ -405,6 +417,7 @@ export function updateDialogSystem(dt) {
           npcName: npc.name,
           isDungeonEntrance: !!npc.isDungeonEntrance,
           isDungeonExit: !!npc.isDungeonExit,
+          isTavernEntrance: !!npc.isTavernEntrance,
         },
       })
     );

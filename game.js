@@ -13,7 +13,9 @@ import {
   registerDungeonScene,
   setInDungeonMode,
   spawnRandomMonster,
+  registerTavernEntrance,
 } from "./systems/npcSystem.js";
+
 import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js";
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
 import { createPlayerStats } from "./placeholders/playerStatsPlaceholder.js";
@@ -58,6 +60,9 @@ camera.lookAt(0, 0, 0);
 // Dungeon / scene state
 let activeScene = scene;
 let inDungeon = false;
+
+let inTavern = false;
+let tavernScene = null;
 
 let hasSpawnedDungeonMonsters = false;
 
@@ -175,6 +180,7 @@ function createVillage() {
   tavern.rotateY(Math.PI / 4);
   scene.add(tavern);
   addStaticCollider(tavern);
+  registerTavernEntrance(tavern);
 
   const house2 = new Gen.House(new T.Vector3(10, 0, 6), 1);
   house2.rotateY(Math.PI / 2);
@@ -324,6 +330,44 @@ window.addEventListener("dungeon-exit-request", () => {
 
   camera.position.set(0, 5, 10);
   camera.lookAt(0, 0, 0);
+});
+
+// Tavern enter
+window.addEventListener("tavern-enter-request", () => {
+  // We are not in dungeon anymore
+  inDungeon = false;
+  inTavern = true;
+
+  (async () => {
+    try {
+      // Lazy-load Tavern.js so the game does not break while it doesn't exist yet
+      if (!tavernScene) {
+        const mod = await import("./env/Tavern.js");
+        const Tavern = mod.Tavern;
+        tavernScene = new Tavern();
+      }
+
+      activeScene = tavernScene;
+
+      // Tavern is NOT "dungeon mode" for NPC logic or collision
+      setInDungeonMode(false);
+      setCollisionDungeonMode(false);
+
+      if (playerController && playerController.mesh) {
+        // Place player at origin; innkeeper will be at (0,0,0) in Tavern.js
+        playerController.mesh.position.set(0, 1, 0);
+      }
+
+      camera.position.set(0, 5, 10);
+      camera.lookAt(0, 0, 0);
+    } catch (err) {
+      // While Tavern.js is missing, we just log and do nothing else.
+      console.warn(
+        "Tavern.js not available yet – tavern teleport event is wired, but scene is missing.",
+        err
+      );
+    }
+  })();
 });
 
 

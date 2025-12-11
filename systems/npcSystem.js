@@ -64,6 +64,7 @@ const enemyArrows = [];
 
 let dungeonEntranceRef = null;
 let dungeonExitRef = null;
+let tavernEntranceRef = null;
 let inDungeonMode = false;
 
 // For dynamically generated dungeon monsters
@@ -671,8 +672,30 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
     }
   }
 
+  // --- Tavern entrance: same idea, slightly extended radius ---
+  if (tavernEntranceRef) {
+    const dx = tavernEntranceRef.position.x - playerPosition.x;
+    const dy = tavernEntranceRef.position.y - playerPosition.y;
+    const dz = tavernEntranceRef.position.z - playerPosition.z;
+    const distSq = dx * dx + dy * dy + dz * dz;
+
+    if (distSq <= extendedRangeSq && distSq < bestDistSq) {
+      bestDistSq = distSq;
+      best = {
+        id: "tavern_entrance",
+        name: "Tavern Entrance",
+        mesh: tavernEntranceRef,
+        talkable: true,
+        hostile: false,
+        isTavernEntrance: true,
+        dialogId: null,
+      };
+    }
+  }
+
   return best;
 }
+
 
 
 export function setNPCHostile(npcId, hostile) {
@@ -721,6 +744,10 @@ export function setInDungeonMode(isInDungeon) {
 
 export function getInDungeonMode() {
   return inDungeonMode;
+}
+
+export function registerTavernEntrance(mesh) {
+  tavernEntranceRef = mesh;
 }
 
 /**
