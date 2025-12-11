@@ -202,47 +202,6 @@ function createVillage() {
 }
 
 /**
- * Scatter rocks (boulders) and bushes across the map, avoiding the village center.
- */
-function scatterRocksAndBushes() {
-  const villageCenterX = -15;
-  const villageCenterZ = -10;
-  const villageAvoidRadius = 8;
-
-  // Rocks
-  for (let i = 0; i < 18; i++) {
-    const x = randomInRange(-45, 45);
-    const z = randomInRange(-45, 45);
-    if (Math.hypot(x - villageCenterX, z - villageCenterZ) < villageAvoidRadius) {
-      continue;
-    }
-
-    const rock = new Gen.Rock(new T.Vector3(x, 0, z), 0.8 + Math.random() * 1.2);
-    rock.rotateY(Math.random() * Math.PI * 2);
-    scene.add(rock);
-    addStaticCollider(rock);
-  }
-
-  // Bushes
-  for (let i = 0; i < 25; i++) {
-    const x = randomInRange(-45, 45);
-    const z = randomInRange(-45, 45);
-    if (Math.hypot(x - villageCenterX, z - villageCenterZ) < villageAvoidRadius) {
-      continue;
-    }
-
-    const bush = new Gen.Bush(
-      new T.Vector3(x, 0, z),
-      0.8 + Math.random() * 0.8
-    );
-    bush.rotateY(Math.random() * Math.PI * 2);
-    scene.add(bush);
-    registerAnimatedFoliage(bush);
-    addStaticCollider(bush);
-  }
-}
-
-/**
  * Generate the overworld layout: forest, village, scattered rocks/bushes.
  */
 function generateOverworld() {
@@ -251,9 +210,6 @@ function generateOverworld() {
 
   // Village with well and barrels
   createVillage();
-
-  // Scattered boulders and bushes across the map
-  //scatterRocksAndBushes();
 
   // Dungeon entrance collider
   addStaticCollider(dungeonEntrance);
