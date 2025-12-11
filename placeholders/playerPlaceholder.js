@@ -44,6 +44,16 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   let isSprinting = false;
   let sprintCooldownTimer = 0.0; // counts time since sprint stopped
 
+  // --- Head bobbing (camera) ---
+  const bobEnabled = true;
+  const bobAmplitudeWalk = 0.06; // vertical bob amplitude 
+  const bobAmplitudeSprint = 0.12; // amplitude when sprinting
+  const bobBaseFreq = 3.5; 
+  let bobTimer = 0.0;
+  let bobOffsetY = 0.0;
+  let wasMoving = false;
+  let lastMoveSpeed = moveSpeed;
+
   // --- Vertical jump
   let velocityY = 0; // units per second
   const gravity = 30;
@@ -189,7 +199,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   function getEyePosition() {
     return new T.Vector3(
       player.position.x,
-      player.position.y + eyeHeight,
+      player.position.y + eyeHeight + bobOffsetY,
       player.position.z
     );
   }
@@ -262,6 +272,32 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       velocity.normalize().multiplyScalar(currentSpeed * dt);
       player.position.add(velocity);
       clampToBounds(player.position);
+    }
+
+    // bobbing state
+    const currentlyMoving = velocity.lengthSq() > 0;
+    wasMoving = currentlyMoving;
+    lastMoveSpeed = currentSpeed;
+  }
+
+  function updateBobbing(dt) {
+    if (!bobEnabled) {
+      bobOffsetY = 0;
+      return;
+    }
+
+    // bob only when moving and grounded
+    const moving = wasMoving && isGrounded;
+
+    if (moving) {
+      // bob frequency scales with speed
+      const freq = bobBaseFreq * (lastMoveSpeed / moveSpeed);
+      const amp = isSprinting ? bobAmplitudeSprint : bobAmplitudeWalk;
+      bobTimer += dt * freq;
+      bobOffsetY = Math.sin(bobTimer * Math.PI * 2) * amp;
+    } else {
+      bobOffsetY = bobOffsetY * Math.max(0, 1 - 10 * dt);
+      if (bobTimer > 1e6) bobTimer = bobTimer % 1.0;
     }
   }
 
@@ -450,6 +486,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   function update(dt) {
     updateVertical(dt);
     updateMovement(dt);
+    updateBobbing(dt);
     updateArrows(dt);
   }
 
