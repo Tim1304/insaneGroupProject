@@ -3,6 +3,7 @@
 // Player controller placeholder for testing camera, dialog, and UI.
 // Aiden will replace internals later, but should keep this API shape.
 import { getInDungeonMode, getDungeonSceneRef } from "../systems/npcSystem.js";
+import { setPlayerCollisionEnabled } from "../systems/collisionSystem.js";
 
 const KEY = {
   W: "KeyW",
@@ -15,6 +16,7 @@ const KEY = {
   SPACE: "Space",
 };
 
+let playerCollision = true;
 export function createPlayerController(T, scene, mapInfo, playerStats) {
   // --- Player visual (simple box) ---
   const playerGeo = new T.BoxGeometry(1, 2, 1);
@@ -48,7 +50,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   const bobEnabled = true;
   const bobAmplitudeWalk = 0.06; // vertical bob amplitude 
   const bobAmplitudeSprint = 0.12; // amplitude when sprinting
-  const bobBaseFreq = 3.5; 
+  const bobBaseFreq = 3.5;
   let bobTimer = 0.0;
   let bobOffsetY = 0.0;
   let wasMoving = false;
@@ -95,6 +97,12 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       }
       setCurrentWeapon("sword");
       return;
+    }
+
+    if (e.code === "KeyC") {
+      // Toggle player collision
+      playerCollision = !playerCollision;
+      setPlayerCollisionEnabled(playerCollision);
     }
 
     if (e.code === KEY.DIGIT3) {
@@ -421,7 +429,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     crosshairEl = null;
   }
 
-    function bowAttack() {
+  function bowAttack() {
     const eye = getEyePosition();
     const dir = getForwardDirection();
 
