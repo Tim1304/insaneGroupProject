@@ -256,7 +256,7 @@ scene.background = textureCube;
 scene.add(new T.AxesHelper(5));
 
 // --- Dungeon setup ---
-const dungeon = new Dungeon();
+const dungeon = new Dungeon(3, playerController);
 registerDungeonScene(dungeon);
 
 // Tell the collision system about the dungeon scene

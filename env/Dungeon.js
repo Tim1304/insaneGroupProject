@@ -2,10 +2,12 @@
 import * as T from "../CS559-Three/build/three.module.js";
 
 export class Dungeon extends T.Scene {
-    constructor(lenPieces = 3) {
+    constructor(lenPieces = 3, player) {
         super();
 
         const self = this;
+
+        self.add(player);
 
         // Valid tunnel cells where we can spawn monsters (center of each box segment)
         this.spawnCells = [];

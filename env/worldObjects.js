@@ -679,13 +679,13 @@ export class DungeonEntrance extends T.Group {
     }
 }
 
-export class Dagger extends T.Group {
-    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
+export class Weapon extends T.Group {
+    constructor(position = new T.Vector3(0, 0, 0), scale = 1, path) {
         super();
         const loader = new GLTFLoader();
         this.totalTime = 0;
         let dagger;
-        const gltf = loader.load('./env/readyMades/dagger.glb', (gltf) => {
+        const gltf = loader.load(path, (gltf) => {
             dagger = gltf.scene;
             dagger.position.y += 0.7;
             dagger.scale.set(0.5, 0.7, 0.5);

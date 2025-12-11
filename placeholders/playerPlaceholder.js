@@ -22,12 +22,20 @@ let controlsLocked = false;
 export function createPlayerController(T, scene, mapInfo, playerStats) {
   //--- Player visual (simple box) ---
   let isSwinging = false;
+  let weapons = [];
   const player = new T.Group();
   player.position.y += 1;
   scene.add(player);
-  let dagger = new Gen.Dagger();
-  dagger.position.set(-1, 0, 2);
+  let hand = new Gen.Weapon(new T.Vector3(-1, 0, 2), 1, './env/readyMades/hand.glb');
+  player.add(hand);
+  weapons.push(hand);
+  let dagger = new Gen.Weapon(new T.Vector3(-1, 0, 2), 1, './env/readyMades/dagger.glb');
   player.add(dagger);
+  weapons.push(dagger);
+  let bow = new Gen.Weapon(new T.Vector3(-1, 0, 2), 1, './env/readyMades/bow.glb');
+  player.add(bow);
+  weapons.push(bow);
+
 
   // Simple "dummy" to hit (for debug)
   const dummyGeo = new T.BoxGeometry(1, 2, 1);
@@ -96,6 +104,9 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     if (e.code === KEY.DIGIT1) {
       // fists are always available
       setCurrentWeapon("hand");
+      // Weapon visibility
+      weapons.forEach((w) => w.visible = false);
+      hand.visible = true;
       return;
     }
 
@@ -107,6 +118,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
         }
       }
       setCurrentWeapon("sword");
+      weapons.forEach((w) => w.visible = false);
+      dagger.visible = true;
       return;
     }
 
@@ -126,6 +139,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       }
       // toggle aim mode with bow equipped
       setCurrentWeapon("bow");
+      weapons.forEach((w) => w.visible = false);
+      bow.visible = true;
       if (!isAimingBow) {
         isAimingBow = true;
         createCrosshair();
@@ -554,9 +569,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       // You *could* still move arrows here if you wanted, but dead = frozen, so:
       return;
     }
-    // Dagger animation
+    // Weapon animation
     if (isSwinging) {
-      console.log("hello");
       isSwinging = dagger.animateSwing(dt);
     }
     updateVertical(dt);
