@@ -4,6 +4,7 @@
 // Aiden will replace internals later, but should keep this API shape.
 import { getInDungeonMode, getDungeonSceneRef } from "../systems/npcSystem.js";
 import { setPlayerCollisionEnabled } from "../systems/collisionSystem.js";
+import * as Gen from "../env/worldObjects.js";
 
 const KEY = {
   W: "KeyW",
@@ -19,11 +20,13 @@ const KEY = {
 let playerCollision = true;
 export function createPlayerController(T, scene, mapInfo, playerStats) {
   //--- Player visual (simple box) ---
-  const playerGeo = new T.BoxGeometry(1, 2, 1);
-  const playerMat = new T.MeshStandardMaterial({ color: 0xffffff });
-  const player = new T.Mesh(playerGeo, playerMat);
-  player.position.set(0, 1, 0);
+  let isSwinging = false;
+  const player = new T.Group();
+  player.position.y += 1;
   scene.add(player);
+  let dagger = new Gen.Dagger();
+  dagger.position.set(-1, 0, 2);
+  player.add(dagger);
 
   // Simple "dummy" to hit (for debug)
   const dummyGeo = new T.BoxGeometry(1, 2, 1);
@@ -298,6 +301,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
     if (velocity.lengthSq() > 0) {
       velocity.normalize().multiplyScalar(currentSpeed * dt);
+      // Rotate player to face forward direction
+      player.rotation.y = Math.atan2(forward.x, forward.z);
       player.position.add(velocity);
       clampToBounds(player.position);
     }
@@ -356,6 +361,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   }
 
   function meleeAttack(weaponOverride) {
+    isSwinging = true;
+    console.log(isSwinging);
     const weapon = weaponOverride || currentWeapon;
 
     // base stats
@@ -531,10 +538,16 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
   // --- Public update called from game.js ---
   function update(dt) {
+    // Dagger animation
+    if (isSwinging) {
+      console.log("hello");
+      isSwinging = dagger.animateSwing(dt);
+    }
     updateVertical(dt);
     updateMovement(dt);
     updateBobbing(dt);
     updateArrows(dt);
+    player.rotation.y = Math.atan2(getForwardDirection().x, getForwardDirection().z);
   }
 
   return {

@@ -678,3 +678,53 @@ export class DungeonEntrance extends T.Group {
         this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
     }
 }
+
+export class Dagger extends T.Group {
+    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
+        super();
+        const loader = new GLTFLoader();
+        this.totalTime = 0;
+        let dagger;
+        const gltf = loader.load('./env/readyMades/dagger.glb', (gltf) => {
+            dagger = gltf.scene;
+            dagger.position.y += 0.7;
+            dagger.scale.set(0.5, 0.7, 0.5);
+            this.add(dagger);
+        });
+        this.add(gltf);
+        // Place and rescale based on passed params
+        this.position.copy(position);
+        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
+
+        // ANIMATION
+        let clip = function () {
+            let track0 = new T.VectorKeyframeTrack(".rotation[x]",
+                [0, 0.25, 0.5],
+                [0, Math.PI / 2, 0]);
+            return new T.AnimationClip("swing", -1, [track0]);
+        }
+        let mixer = new T.AnimationMixer(this);
+        let action = mixer.clipAction(clip());
+        action.play();
+
+        this.mixer = mixer;
+
+        // Place and rescale based on passed params
+        this.position.copy(position);
+        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
+    }
+
+    animateSwing(dt) {
+        this.totalTime += dt;
+        if (this.totalTime <= 0.5) {
+            console.log(this.totalTime);
+            this.mixer.update(dt);
+        } else {
+            this.totalTime = 0;
+            this.rotation.x = 0;
+            return false;
+        }
+        return true;
+    }
+}
+

@@ -52,7 +52,7 @@ const camera = new T.PerspectiveCamera(
   0.1,
   1000
 );
-camera.position.set(0, 5, 10);
+camera.position.set(0, 5, -10);
 camera.lookAt(0, 0, 0);
 
 // Dungeon / scene state
@@ -218,7 +218,7 @@ function generateOverworld() {
 }
 
 // Build the overworld after systems are ready
-generateOverworld();
+//generateOverworld();
 
 // --- Resize handling ---
 window.addEventListener("resize", () => {

@@ -1,4 +1,6 @@
 // systems/cameraSystem.js
+import * as T from "three";
+import * as Gen from "../env/worldObjects.js";
 
 let sceneRef = null;
 let cameraRef = null;
@@ -86,5 +88,6 @@ export function updateCameraSystem(dt) {
   const dir = playerRef.getForwardDirection();
 
   cameraRef.position.copy(eye);
+  cameraRef.add(new T.Mesh(new T.SphereGeometry(10, 32, 32), new T.MeshBasicMaterial({ color: 0xff0000 })));
   cameraRef.lookAt(eye.clone().add(dir));
 }
