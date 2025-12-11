@@ -25,9 +25,18 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   const player = new T.Group();
   player.position.y += 1;
   scene.add(player);
+
+  // 🔹 Weapon root: follow camera pitch
+  const weaponRoot = new T.Group();
+  player.add(weaponRoot);
+
   let dagger = new Gen.Dagger();
   dagger.position.set(-1, 0, 2);
-  player.add(dagger);
+  weaponRoot.add(dagger);
+
+  // start hidden; will only show when sword is equipped
+  dagger.visible = false;
+
 
   // Simple "dummy" to hit (for debug)
   const dummyGeo = new T.BoxGeometry(1, 2, 1);
@@ -186,6 +195,9 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     }
 
     console.log("[Player] Equipped weapon:", currentWeapon);
+    if (dagger) {
+      dagger.visible = currentWeapon === "sword";
+    }
   }
 
   // --- Input listener (mouse attack) ---
@@ -574,6 +586,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     updateBobbing(dt);
     updateArrows(dt);
     player.rotation.y = Math.atan2(getForwardDirection().x, getForwardDirection().z);
+    weaponRoot.rotation.x = - pitch;
   }
 
   return {
