@@ -19,10 +19,19 @@ let uiRoot = null;
 // Stats panel (Tab)
 let statsPanel = null;
 let statsOpen = false;
+
+// basic resources
 let statsHealthEl = null;
 let statsStaminaEl = null;
 let statsGoldEl = null;
 let statsScoreEl = null;
+
+// leveled stats
+let statsSpeedEl = null;
+let statsStrengthEl = null;
+let statsHandEyeEl = null;
+let statsHealthLevelEl = null;
+
 
 // Inventory panel (I)
 let inventoryPanel = null;
@@ -102,25 +111,51 @@ function createStatsPanel() {
   title.style.marginBottom = "8px";
   title.style.color = "#ffd27f";
 
+  // basic resource values
   statsHealthEl = document.createElement("div");
   statsStaminaEl = document.createElement("div");
   statsGoldEl = document.createElement("div");
   statsScoreEl = document.createElement("div");
 
+  // divider
+  const divider = document.createElement("div");
+  divider.style.margin = "6px 0";
+  divider.style.height = "1px";
+  divider.style.background = "rgba(255,255,255,0.15)";
+
+  // leveled stat values
+  statsSpeedEl = document.createElement("div");
+  statsStrengthEl = document.createElement("div");
+  statsHandEyeEl = document.createElement("div");
+  statsHealthLevelEl = document.createElement("div");
+
   statsPanel.appendChild(title);
+
+  // top section: raw values
   statsPanel.appendChild(statsHealthEl);
   statsPanel.appendChild(statsStaminaEl);
   statsPanel.appendChild(statsGoldEl);
   statsPanel.appendChild(statsScoreEl);
 
+  // separator
+  statsPanel.appendChild(divider);
+
+  // bottom section: leveled stats (speed/strength/handEye/health)
+  statsPanel.appendChild(statsSpeedEl);
+  statsPanel.appendChild(statsStrengthEl);
+  statsPanel.appendChild(statsHandEyeEl);
+  statsPanel.appendChild(statsHealthLevelEl);
+
   uiRoot.appendChild(statsPanel);
   refreshStatsPanel();
 }
+
 
 function refreshStatsPanel() {
   if (!playerStatsRef) return;
   if (!statsPanel || !statsHealthEl) return;
 
+  // --- basic values (HP, stamina, gold, score) ---
   const health =
     typeof playerStatsRef.getHealth === "function"
       ? playerStatsRef.getHealth()
@@ -138,11 +173,45 @@ function refreshStatsPanel() {
       ? playerStatsRef.getScore()
       : 0;
 
-  statsHealthEl.textContent = `Health: ${Math.round(health)}`;
+  statsHealthEl.textContent = `Health (HP): ${Math.round(health)}`;
   statsStaminaEl.textContent = `Stamina: ${Math.round(stamina)}`;
   statsGoldEl.textContent = `Gold: ${gold}`;
   statsScoreEl.textContent = `Score: ${score}`;
+
+  // --- leveled stats (speed, strength, handEye, health) ---
+  // uses playerStatsPlaceholder.getStatLevel(statName)
+  const getLevel =
+    typeof playerStatsRef.getStatLevel === "function"
+      ? playerStatsRef.getStatLevel.bind(playerStatsRef)
+      : null;
+
+  if (getLevel) {
+    const speedLevel = getLevel("speed");
+    const strengthLevel = getLevel("strength");
+    const handEyeLevel = getLevel("handEye");
+    const healthLevel = getLevel("health");
+
+    if (statsSpeedEl) {
+      statsSpeedEl.textContent = `Speed Lv ${speedLevel}`;
+    }
+    if (statsStrengthEl) {
+      statsStrengthEl.textContent = `Strength Lv ${strengthLevel}`;
+    }
+    if (statsHandEyeEl) {
+      statsHandEyeEl.textContent = `Hand-Eye Lv ${handEyeLevel}`;
+    }
+    if (statsHealthLevelEl) {
+      statsHealthLevelEl.textContent = `Health Stat Lv ${healthLevel}`;
+    }
+  } else {
+    // fallback text if for some reason getStatLevel doesn't exist
+    if (statsSpeedEl) statsSpeedEl.textContent = "Speed Lv ?";
+    if (statsStrengthEl) statsStrengthEl.textContent = "Strength Lv ?";
+    if (statsHandEyeEl) statsHandEyeEl.textContent = "Hand-Eye Lv ?";
+    if (statsHealthLevelEl) statsHealthLevelEl.textContent = "Health Stat Lv ?";
+  }
 }
+
 
 function toggleStatsPanel() {
   if (!statsPanel) return;
