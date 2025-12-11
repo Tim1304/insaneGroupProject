@@ -224,7 +224,7 @@ function generateOverworld() {
 }
 
 // Build the overworld after systems are ready
-//generateOverworld();
+generateOverworld();
 
 // --- Resize handling ---
 window.addEventListener("resize", () => {
