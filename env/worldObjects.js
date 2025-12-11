@@ -680,51 +680,217 @@ export class DungeonEntrance extends T.Group {
 }
 
 export class Dagger extends T.Group {
-    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
-        super();
-        const loader = new GLTFLoader();
-        this.totalTime = 0;
-        let dagger;
-        const gltf = loader.load('./env/readyMades/dagger.glb', (gltf) => {
-            dagger = gltf.scene;
-            dagger.position.y += 0.7;
-            dagger.scale.set(0.5, 0.7, 0.5);
-            this.add(dagger);
-        });
-        this.add(gltf);
-        // Place and rescale based on passed params
-        this.position.copy(position);
-        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
+  constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
+    super();
 
-        // ANIMATION
-        let clip = function () {
-            let track0 = new T.VectorKeyframeTrack(".rotation[x]",
-                [0, 0.25, 0.5],
-                [0, Math.PI / 2, 0]);
-            return new T.AnimationClip("swing", -1, [track0]);
-        }
-        let mixer = new T.AnimationMixer(this);
-        let action = mixer.clipAction(clip());
-        action.play();
+    // Load the model
+    const loader = new GLTFLoader();
+    loader.load("./env/readyMades/dagger.glb", (gltf) => {
+      const dagger = gltf.scene;
+      dagger.position.y += 0.7;          // your original offset
+      dagger.scale.set(0.5, 0.7, 0.5);   // your original scale
+      this.add(dagger);
+    });
 
-        this.mixer = mixer;
+    // Place and rescale based on passed params
+    this.position.copy(position);
+    this.scale.set(
+      this.scale.x * scale,
+      this.scale.y * scale,
+      this.scale.z * scale
+    );
 
-        // Place and rescale based on passed params
-        this.position.copy(position);
-        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
+    // ---- Base (idle) pose ----
+    this._baseCaptured = false;
+    this.basePosition = new T.Vector3();
+    this.baseRotation = new T.Euler();
+
+    // ---- Swing state ----
+    this.swingActive = false;
+    this.swingProgress = 0;     // 0 → 1
+    this.swingDuration = 1.2;  // slower & smoother
+
+    // Combo side: +1 = start from right, -1 = start from left
+    this.nextSide = 1;
+    this.currentSide = 1;
+  }
+
+  _ensureBaseCaptured() {
+    if (!this._baseCaptured) {
+      this.basePosition.copy(this.position);
+      this.baseRotation.copy(this.rotation);
+      this._baseCaptured = true;
+    }
+  }
+
+  // Call this when an attack starts
+  startSwing() {
+    this._ensureBaseCaptured();
+
+    // Ignore spam while mid-swing:
+    if (this.swingActive) return;
+
+    this.currentSide = this.nextSide;
+    this.nextSide = this.nextSide === 1 ? -1 : 1; // alternate sides
+
+    this.swingActive = true;
+    this.swingProgress = 0;
+  }
+
+  // --------- Helpers ---------
+  static _lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  static _smooth(t) {
+    // smoothstep-ish easing: ease in & ease out
+    return t * t * (3 - 2 * t);
+  }
+
+  static _lerpVec3(out, a, b, t) {
+    const tt = Dagger._smooth(t);
+    out.set(
+      Dagger._lerp(a.x, b.x, tt),
+      Dagger._lerp(a.y, b.y, tt),
+      Dagger._lerp(a.z, b.z, tt)
+    );
+  }
+
+  static _lerpEuler(out, a, b, t) {
+    const tt = Dagger._smooth(t);
+    out.set(
+      Dagger._lerp(a.x, b.x, tt),
+      Dagger._lerp(a.y, b.y, tt),
+      Dagger._lerp(a.z, b.z, tt),
+      a.order
+    );
+  }
+
+  /**
+   * diagonal slashes:
+   *
+   *  - Side = +1: idle → TOP RIGHT → BOTTOM LEFT → idle
+   *  - Side = -1: idle → TOP LEFT  → BOTTOM RIGHT → idle
+   *
+   * Blade angle:
+   *   left-start  (s = -1): idle.z + 45° (CCW)
+   *   right-start (s = +1): idle.z - 45° (CW)
+   *
+   * Idle rotation itself is never changed outside the swing.
+   */
+  animateSwing(dt) {
+    this._ensureBaseCaptured();
+
+    if (!this.swingActive) {
+      // force exact idle when not swinging
+      this.position.copy(this.basePosition);
+      this.rotation.copy(this.baseRotation);
+      return false;
     }
 
-    animateSwing(dt) {
-        this.totalTime += dt;
-        if (this.totalTime <= 0.5) {
-            console.log(this.totalTime);
-            this.mixer.update(dt);
-        } else {
-            this.totalTime = 0;
-            this.rotation.x = 0;
-            return false;
-        }
-        return true;
+    // clamp dt a bit so low FPS doesn't explode the animation
+    const cappedDt = Math.min(dt, 0.05);
+    const swingDuration = this.swingDuration || 0.55;
+
+    // Progress 0 → 1 over swingDuration
+    this.swingProgress += cappedDt / swingDuration;
+    let t = this.swingProgress;
+
+    if (t >= 1.0) {
+      this.swingActive = false;
+      // snap fully back to idle
+      this.position.copy(this.basePosition);
+      this.rotation.copy(this.baseRotation);
+      return false;
     }
+
+    const s = this.currentSide; // +1 = right→left, -1 = left→right
+
+    const idlePos = this.basePosition;
+    const idleRot = this.baseRotation;
+
+    // How much to twist the blade relative to idle for attack
+    const BLADE_ANGLE = Math.PI / 4; // 45 degrees
+
+    // ***** BIG OFFSETS so it goes near screen corners *****
+    const TOP_OFFSET_X   = 3.0;   // horizontal from center
+    const TOP_OFFSET_Y   = 2.0;   // vertical up
+    const TOP_OFFSET_Z   = -0.4;  // closer to camera
+
+    const BOT_OFFSET_X   = 3.2;   // to opposite side
+    const BOT_OFFSET_Y   = -2.0;  // vertical down
+    const BOT_OFFSET_Z   = 0.8;   // slightly away
+
+    const ROT_TILT_BACK  = 1.2;
+    const ROT_TILT_DOWN  = 1.6;
+    const ROT_YAW        = 1.4;
+
+    // For the swing, we want:
+    //  - left-start  (s = -1): idle.z + 45° (CCW)
+    //  - right-start (s = +1): idle.z - 45° (CW)
+    const bladeAngleTop    = idleRot.z - s * BLADE_ANGLE;
+    const bladeAngleBottom = idleRot.z - s * (BLADE_ANGLE * 0.7); // slightly relaxed on follow-through
+
+    // Top corner 
+    const topPos = new T.Vector3(
+      idlePos.x + TOP_OFFSET_X * s,
+      idlePos.y + TOP_OFFSET_Y,
+      idlePos.z + TOP_OFFSET_Z
+    );
+    const topRot = new T.Euler(
+      idleRot.x - ROT_TILT_BACK,   // tilt back
+      idleRot.y + ROT_YAW * s,     // yaw toward that side
+      bladeAngleTop,               // edge at ±45° from idle
+      idleRot.order
+    );
+
+    // Bottom opposite corner
+    const bottomPos = new T.Vector3(
+      idlePos.x - BOT_OFFSET_X * s,
+      idlePos.y + BOT_OFFSET_Y,
+      idlePos.z + BOT_OFFSET_Z
+    );
+    const bottomRot = new T.Euler(
+      idleRot.x + ROT_TILT_DOWN,   // swing down
+      idleRot.y - ROT_YAW * 0.9 * s,
+      bladeAngleBottom,            // still edge-leading
+      idleRot.order
+    );
+
+    // Timing (slower & smoother):
+    // 0.0–0.25 : idle → top (wind-up)
+    // 0.25–0.75: top → bottom (main slash)
+    // 0.75–1.0 : bottom → idle (recovery)
+    let fromPos, toPos, fromRot, toRot, u;
+
+    if (t < 0.25) {
+      u = t / 0.25;
+      fromPos = idlePos;
+      toPos = topPos;
+      fromRot = idleRot;
+      toRot = topRot;
+    } else if (t < 0.75) {
+      u = (t - 0.25) / 0.5;
+      fromPos = topPos;
+      toPos = bottomPos;
+      fromRot = topRot;
+      toRot = bottomRot;
+    } else {
+      u = (t - 0.75) / 0.25;
+      fromPos = bottomPos;
+      toPos = idlePos;
+      fromRot = bottomRot;
+      toRot = idleRot;
+    }
+
+    const newPos = new T.Vector3();
+    const newRot = new T.Euler();
+    Dagger._lerpVec3(newPos, fromPos, toPos, u);
+    Dagger._lerpEuler(newRot, fromRot, toRot, u);
+
+    this.position.copy(newPos);
+    this.rotation.copy(newRot);
+
+    return true;
+  }
 }
-

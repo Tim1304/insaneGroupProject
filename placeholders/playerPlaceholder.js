@@ -372,9 +372,13 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   }
 
   function meleeAttack(weaponOverride) {
-    isSwinging = true;
-    console.log(isSwinging);
     const weapon = weaponOverride || currentWeapon;
+
+    // Trigger sword swing animation (alternating diagonal)
+    if (weapon === "sword" && dagger && typeof dagger.startSwing === "function") {
+      dagger.startSwing();
+      isSwinging = true;
+    }
 
     // base stats
     let dmg = 20;
@@ -386,12 +390,17 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     }
 
     // apply strength stat for sword damage (10% per level above 1)
-    if (weapon === 'sword' && playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
+    if (
+      weapon === "sword" &&
+      playerStatsRef &&
+      typeof playerStatsRef.getStatLevel === "function"
+    ) {
       try {
-        const lvl = Number(playerStatsRef.getStatLevel('strength')) || 1;
+        const lvl = Number(playerStatsRef.getStatLevel("strength")) || 1;
         const mult = 1 + 0.1 * Math.max(0, lvl - 1);
         dmg = dmg * mult;
       } catch (err) {
+        // ignore
       }
     }
 
@@ -420,6 +429,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       // ignore if dispatch fails
     }
   }
+
 
   function createCrosshair() {
     if (crosshairEl) return;
