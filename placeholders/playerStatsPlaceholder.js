@@ -54,6 +54,10 @@ export function createPlayerStats() {
     });
   }
 
+  function notifyStaminaChanged() {
+    safeDispatch("player-stamina-changed", { stamina });
+  }
+
   document.addEventListener("keydown", (e) => {
     switch (e.code) {
       case KEY.HEALTH_DOWN:
@@ -69,11 +73,13 @@ export function createPlayerStats() {
       case KEY.STAMINA_DOWN:
         stamina = clamp(stamina - 5);
         console.log("Stamina:", stamina);
+        notifyStaminaChanged();
         break;
 
       case KEY.STAMINA_UP:
         stamina = clamp(stamina + 5);
         console.log("Stamina:", stamina);
+        notifyStaminaChanged();
         break;
     }
   });
@@ -144,13 +150,13 @@ export function createPlayerStats() {
 
     // Stamina
     getStamina: () => stamina,
-    setStamina: (v) => { stamina = clamp(v); },
+    setStamina: (v) => { stamina = clamp(v); notifyStaminaChanged(); },
 
     // Helpers
     damage: (amt) => { health = clamp(health - amt); },
     restoreHealth: (amt) => { health = clamp(health + amt); },
-    useStamina: (amt) => { stamina = clamp(stamina - amt); },
-    restoreStamina: (amt) => { stamina = clamp(stamina + amt); },
+    useStamina: (amt) => { stamina = clamp(stamina - amt); notifyStaminaChanged(); },
+    restoreStamina: (amt) => { stamina = clamp(stamina + amt); notifyStaminaChanged(); },
 
     // Gold / score API ---
 

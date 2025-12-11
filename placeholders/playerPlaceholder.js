@@ -36,6 +36,13 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   const keys = new Set();
   const moveSpeed = 6; // units per second
   const eyeHeight = 1.5;
+  // --- Sprinting ---
+  const sprintMultiplier = 1.25; // +25% speed
+  const sprintDrainPerSec = 20.0; // stamina bar drained per second while sprinting
+  const staminaRegenPerSec = 10.0; // regens per second when not sprinting
+  const staminaRegenDelay = 3.0; // delay until regen starts
+  let isSprinting = false;
+  let sprintCooldownTimer = 0.0; // counts time since sprint stopped
 
   // --- Vertical jump
   let velocityY = 0; // units per second
@@ -209,13 +216,50 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
     const velocity = new T.Vector3(0, 0, 0);
 
+    const moving = keys.has(KEY.W) || keys.has(KEY.S) || keys.has(KEY.A) || keys.has(KEY.D);
+
     if (keys.has(KEY.W)) velocity.add(forward);
     if (keys.has(KEY.S)) velocity.sub(forward);
     if (keys.has(KEY.A)) velocity.add(right);
     if (keys.has(KEY.D)) velocity.sub(right);
 
+    // Sprint handling: require holding Shift and moving
+    const shiftPressed = keys.has("ShiftLeft") || keys.has("ShiftRight");
+    let currentSpeed = moveSpeed;
+    if (playerStatsRef && shiftPressed && moving && playerStatsRef.getStamina && playerStatsRef.setStamina) {
+      const curStam = playerStatsRef.getStamina();
+      const canSprint = curStam > 0;
+      if (canSprint && shiftPressed && moving) {
+        // start/continue sprinting
+        isSprinting = true;
+        sprintCooldownTimer = 0;
+        currentSpeed = moveSpeed * sprintMultiplier;
+        // drains stamina
+        const newStam = curStam - sprintDrainPerSec * dt;
+        playerStatsRef.setStamina(newStam);
+        // if the stamina is depleted, stop sprinting
+        if (playerStatsRef.getStamina() <= 0) {
+          isSprinting = false;
+          sprintCooldownTimer = 0;
+        }
+      }
+    }
+
+    // If player is not sprinting: regen
+    if (!isSprinting && playerStatsRef && playerStatsRef.getStamina && playerStatsRef.setStamina) {
+      // If shift was released or movement stopped: start cooldown
+      sprintCooldownTimer += dt;
+      if (sprintCooldownTimer >= staminaRegenDelay) {
+        // regen stamina
+        const cur = playerStatsRef.getStamina();
+        if (cur < 100) {
+          playerStatsRef.setStamina(cur + staminaRegenPerSec * dt);
+        }
+      }
+    }
+
     if (velocity.lengthSq() > 0) {
-      velocity.normalize().multiplyScalar(moveSpeed * dt);
+      velocity.normalize().multiplyScalar(currentSpeed * dt);
       player.position.add(velocity);
       clampToBounds(player.position);
     }
