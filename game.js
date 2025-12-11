@@ -338,7 +338,7 @@ window.addEventListener("dungeon-exit-request", () => {
 });
 
 // Tavern enter
-// window.addEventListener("tavern-enter-request", () => {
+window.addEventListener("tavern-enter-request", () => {
   // We are not in dungeon anymore
   inDungeon = false;
   inTavern = true;
@@ -374,7 +374,7 @@ window.addEventListener("dungeon-exit-request", () => {
       );
     }
   })();
-// });
+});
 
 // --- Main loop ---
 function animate(time) {
