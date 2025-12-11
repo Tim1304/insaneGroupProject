@@ -19,6 +19,27 @@ let inBattle = false;
 let playerHP = 100;
 let enemyHP = 100;
 let enemyId = null;
+
+function ensureNPCStats(npc) {
+  if (!npc) return null;
+
+  // NPC stats mirror the player stat structure:
+  //   speed:   { level, jumpsSinceLevel }
+  //   strength:{ level, killsSinceLevel }
+  //   handEye: { level, killsSinceLevel }
+  //   health:  { level, killsSinceLevel }
+  if (!npc.stats) {
+    npc.stats = {
+      speed:   { level: 1, jumpsSinceLevel: 0 },
+      strength:{ level: 1, killsSinceLevel: 0 },
+      handEye: { level: 1, killsSinceLevel: 0 },
+      health:  { level: 1, killsSinceLevel: 0 },
+    };
+  }
+  return npc.stats;
+}
+
+
 let swordButton = null;
 let fistButton = null;
 
@@ -202,20 +223,29 @@ function onEnemyAttackPlayer(e) {
 /**
  * Begin a battle with a specific NPC id (any hostile NPC).
  */
+/**
+ * Begin a battle with a specific NPC id (any hostile NPC).
+ */
 function startBattle(npcIdParam) {
   if (inBattle) return;
 
   inBattle = true;
 
+  // --- initialize player HP from playerStats ---
   if (playerStatsRef && typeof playerStatsRef.getHealth === "function") {
     playerHP = Number(playerStatsRef.getHealth()) || 0;
   } else {
     playerHP = 100;
   }
 
-  // Scale enemy HP based on type + difficulty
+  enemyId = npcIdParam || null;
+
+  // --- look up the NPC and make sure it has stats attached ---
+  const npc = enemyId ? getNPCs().find((n) => n.id === enemyId) : null;
+  const stats = npc ? ensureNPCStats(npc) : null;
+
+  // --- base HP by type (same as before) ---
   let baseHP = 100;
-  const npc = npcIdParam ? getNPCs().find((n) => n.id === npcIdParam) : null;
   if (npc) {
     switch (npc.type) {
       case "melee":
@@ -233,13 +263,25 @@ function startBattle(npcIdParam) {
     }
   }
 
-  const multiplier = 1 + (difficultyLevel - 1) * 0.5;
-  enemyHP = Math.round(baseHP * multiplier);
+  // --- health stat level from npc.stats.health.level ---
+  let healthLevel = 1;
+  if (stats && stats.health && typeof stats.health.level === "number") {
+    healthLevel = stats.health.level;
+  }
 
-  enemyId = npcIdParam || null;
+  // difficulty scaling (same as before)
+  const difficultyMultiplier = 1 + (difficultyLevel - 1) * 0.5;
+
+  // final enemy HP: type base * healthLevel * difficulty
+  enemyHP = Math.round(baseHP * healthLevel * difficultyMultiplier);
+
+  // also store current HP on the npc's stats object so it actually has health
+  if (stats && stats.health) {
+    stats.health.currentHP = enemyHP;
+  }
 
   console.log(
-    `Battle started against: ${enemyId} (baseHP=${baseHP}, difficulty=${difficultyLevel}, enemyHP=${enemyHP})`
+    `Battle started against: ${enemyId} (baseHP=${baseHP}, healthLevel=${healthLevel}, difficulty=${difficultyLevel}, enemyHP=${enemyHP})`
   );
 
   if (enemyId) setNPCHostileSafe(enemyId, true);
@@ -248,6 +290,51 @@ function startBattle(npcIdParam) {
   createFistButton();
   highlightEnemyMesh(true);
 }
+
+// --- rewards for killing an enemy ---
+
+function rewardForKill(npc) {
+  if (!playerStatsRef || !npc) return;
+
+  // Base rewards by NPC type
+  let goldBase = 8;
+  let scoreBase = 10;
+
+  switch (npc.type) {
+    case "melee":
+      goldBase = 8;
+      scoreBase = 10;
+      break;
+    case "bow":
+      goldBase = 10;
+      scoreBase = 12;
+      break;
+    case "tank":
+      goldBase = 12;
+      scoreBase = 15;
+      break;
+    default:
+      goldBase = 6;
+      scoreBase = 8;
+      break;
+  }
+
+  // Small random variation so drops aren't all identical
+  const gold = Math.round(goldBase * (0.8 + Math.random() * 0.4));
+  const score = Math.round(scoreBase);
+
+  if (typeof playerStatsRef.addGold === "function") {
+    playerStatsRef.addGold(gold);
+  }
+  if (typeof playerStatsRef.addScore === "function") {
+    playerStatsRef.addScore(score);
+  }
+
+  console.log(
+    `Reward for killing ${npc.id} (type=${npc.type}): +${gold} gold, +${score} score`
+  );
+}
+
 
 /**
  * End battle. If won === true, enemy is removed.
@@ -261,12 +348,11 @@ function endBattle(won) {
   if (won && enemyId) {
     const npc = getNPCs().find((n) => n.id === enemyId);
     if (npc) {
-      if (npc.mesh) {
-        // Remove from whatever scene actually owns this mesh (overworld or dungeon)
-        if (npc.mesh.parent) {
-          npc.mesh.parent.remove(npc.mesh);
-        }
-        npc.mesh = null;
+      // Give rewards BEFORE removing the NPC
+      rewardForKill(npc);
+
+      if (npc.mesh && sceneRef) {
+        sceneRef.remove(npc.mesh);
       }
       npc.talkable = false;
       npc.hostile = false;
@@ -279,16 +365,27 @@ function endBattle(won) {
 }
 
 
+
 // --- enemy damage & rewards ---
 
 function applyDamageToEnemy(dmg, npc) {
+  if (!npc) return;
+
   enemyHP -= dmg;
+
+  // keep NPC's health stat in sync with the battle HP, if present
+  const stats = ensureNPCStats(npc);
+  if (stats && stats.health) {
+    stats.health.currentHP = enemyHP;
+  }
+
   console.log(`Player hit ${npc.id} for ${dmg}. enemyHP=${enemyHP}`);
   flashNPC(npc, 0xff0000, 150);
   if (enemyHP <= 0) {
     endBattle(true);
   }
 }
+
 
 function grantEnemyDefeatRewards(npc) {
   if (!playerStatsRef) return;
