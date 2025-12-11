@@ -122,6 +122,13 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       if (isGrounded) {
         velocityY = jumpStrength;
         isGrounded = false;
+        // records jumps for speed stat 
+        try {
+          if (playerStatsRef && typeof playerStatsRef.recordJump === 'function') {
+            playerStatsRef.recordJump();
+          }
+        } catch (err) {
+        }
       }
     }
   });
@@ -235,7 +242,17 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
     // Sprint handling: require holding Shift and moving
     const shiftPressed = keys.has("ShiftLeft") || keys.has("ShiftRight");
-    let currentSpeed = moveSpeed;
+    // Apply speed stat (10% per level above 1)
+    let speedLevel = 1;
+    try {
+      if (playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
+        speedLevel = Math.max(1, Number(playerStatsRef.getStatLevel('speed')) || 1);
+      }
+    } catch (err) {
+      speedLevel = 1;
+    }
+    const effectiveBaseSpeed = moveSpeed * (1 + 0.1 * (Math.max(0, speedLevel - 1)));
+    let currentSpeed = effectiveBaseSpeed;
     if (playerStatsRef && shiftPressed && moving && playerStatsRef.getStamina && playerStatsRef.setStamina) {
       const curStam = playerStatsRef.getStamina();
       const canSprint = curStam > 0;
@@ -243,7 +260,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
         // start/continue sprinting
         isSprinting = true;
         sprintCooldownTimer = 0;
-        currentSpeed = moveSpeed * sprintMultiplier;
+        currentSpeed = effectiveBaseSpeed * sprintMultiplier;
         // drains stamina
         const newStam = curStam - sprintDrainPerSec * dt;
         playerStatsRef.setStamina(newStam);
@@ -255,12 +272,15 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       }
     }
 
-    // If player is not sprinting: regen
+    if (isSprinting && (!shiftPressed || !moving)) {
+      isSprinting = false;
+      sprintCooldownTimer = 0; // start cooldown before regen
+    }
+
+    // If player is not sprinting: regen after cooldown regardless of current stamina
     if (!isSprinting && playerStatsRef && playerStatsRef.getStamina && playerStatsRef.setStamina) {
-      // If shift was released or movement stopped: start cooldown
       sprintCooldownTimer += dt;
       if (sprintCooldownTimer >= staminaRegenDelay) {
-        // regen stamina
         const cur = playerStatsRef.getStamina();
         if (cur < 100) {
           playerStatsRef.setStamina(cur + staminaRegenPerSec * dt);
@@ -339,6 +359,16 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       range = 2.5 / 2; // shorter reach
     }
 
+    // apply strength stat for sword damage (10% per level above 1)
+    if (weapon === 'sword' && playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
+      try {
+        const lvl = Number(playerStatsRef.getStatLevel('strength')) || 1;
+        const mult = 1 + 0.1 * Math.max(0, lvl - 1);
+        dmg = dmg * mult;
+      } catch (err) {
+      }
+    }
+
     range = range * 2; // fudge factor
 
     const dist = player.position.distanceTo(dummy.position);
@@ -356,7 +386,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
           detail: {
             pos: player.position.clone(),
             range,
-            dmg,
+              dmg,
           },
         })
       );
@@ -439,12 +469,21 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
           detail: {
             pos: eye.clone(),
             dir: dir.clone(),
-            dmg: 15,
+            dmg: (function() {
+              let base = 15;
+              try {
+                if (playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
+                  const lvl = Number(playerStatsRef.getStatLevel('handEye')) || 1;
+                  const mult = 1 + 0.1 * Math.max(0, lvl - 1);
+                  base = base * mult;
+                }
+              } catch (err) {}
+              return base;
+            })(),
           },
         })
       );
     } catch (err) {
-      // ignore
     }
   }
 
