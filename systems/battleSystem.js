@@ -19,6 +19,35 @@ let inBattle = false;
 let playerHP = 100;
 let enemyHP = 100;
 let enemyId = null;
+
+function ensureNPCStats(npc) {
+  if (!npc) return null;
+
+  // NPC stats mirror the player stat structure:
+  //   speed:   { level, jumpsSinceLevel }
+  //   strength:{ level, killsSinceLevel }
+  //   handEye: { level, killsSinceLevel }
+  //   health:  { level, killsSinceLevel }
+  if (!npc.stats) {
+    npc.stats = {
+      speed: { level: 1, jumpsSinceLevel: 0 },
+      strength: { level: 1, killsSinceLevel: 0 },
+      handEye: { level: 1, killsSinceLevel: 0 },
+      health: { level: 1, killsSinceLevel: 0 },
+    };
+  }
+  return npc.stats;
+}
+
+function safeDispatch(name, detail) {
+  try {
+    window.dispatchEvent(new CustomEvent(name, { detail }));
+  } catch (e) {
+    console.warn("battleSystem: failed to dispatch", name, e);
+  }
+}
+
+
 let swordButton = null;
 let fistButton = null;
 
@@ -202,20 +231,29 @@ function onEnemyAttackPlayer(e) {
 /**
  * Begin a battle with a specific NPC id (any hostile NPC).
  */
+/**
+ * Begin a battle with a specific NPC id (any hostile NPC).
+ */
 function startBattle(npcIdParam) {
   if (inBattle) return;
 
   inBattle = true;
 
+  // --- initialize player HP from playerStats ---
   if (playerStatsRef && typeof playerStatsRef.getHealth === "function") {
     playerHP = Number(playerStatsRef.getHealth()) || 0;
   } else {
     playerHP = 100;
   }
 
-  // Scale enemy HP based on type + difficulty
+  enemyId = npcIdParam || null;
+
+  // --- look up the NPC and make sure it has stats attached ---
+  const npc = enemyId ? getNPCs().find((n) => n.id === enemyId) : null;
+  const stats = npc ? ensureNPCStats(npc) : null;
+
+  // --- base HP by type (same as before) ---
   let baseHP = 100;
-  const npc = npcIdParam ? getNPCs().find((n) => n.id === npcIdParam) : null;
   if (npc) {
     switch (npc.type) {
       case "melee":
@@ -233,13 +271,25 @@ function startBattle(npcIdParam) {
     }
   }
 
-  const multiplier = 1 + (difficultyLevel - 1) * 0.5;
-  enemyHP = Math.round(baseHP * multiplier);
+  // --- health stat level from npc.stats.health.level ---
+  let healthLevel = 1;
+  if (stats && stats.health && typeof stats.health.level === "number") {
+    healthLevel = stats.health.level;
+  }
 
-  enemyId = npcIdParam || null;
+  // difficulty scaling (same as before)
+  const difficultyMultiplier = 1 + (difficultyLevel - 1) * 0.5;
+
+  // final enemy HP: type base * healthLevel * difficulty
+  enemyHP = Math.round(baseHP * healthLevel * difficultyMultiplier);
+
+  // also store current HP on the npc's stats object so it actually has health
+  if (stats && stats.health) {
+    stats.health.currentHP = enemyHP;
+  }
 
   console.log(
-    `Battle started against: ${enemyId} (baseHP=${baseHP}, difficulty=${difficultyLevel}, enemyHP=${enemyHP})`
+    `Battle started against: ${enemyId} (baseHP=${baseHP}, healthLevel=${healthLevel}, difficulty=${difficultyLevel}, enemyHP=${enemyHP})`
   );
 
   if (enemyId) setNPCHostileSafe(enemyId, true);
@@ -247,6 +297,50 @@ function startBattle(npcIdParam) {
   createSwordButton();
   createFistButton();
   highlightEnemyMesh(true);
+}
+
+// --- rewards for killing an enemy ---
+
+function rewardForKill(npc) {
+  if (!playerStatsRef || !npc) return;
+
+  // Base rewards by NPC type
+  let goldBase = 8;
+  let scoreBase = 10;
+
+  switch (npc.type) {
+    case "melee":
+      goldBase = 8;
+      scoreBase = 10;
+      break;
+    case "bow":
+      goldBase = 10;
+      scoreBase = 12;
+      break;
+    case "tank":
+      goldBase = 12;
+      scoreBase = 15;
+      break;
+    default:
+      goldBase = 6;
+      scoreBase = 8;
+      break;
+  }
+
+  // Small random variation so drops aren't all identical
+  const gold = Math.round(goldBase * (0.8 + Math.random() * 0.4));
+  const score = Math.round(scoreBase);
+
+  if (typeof playerStatsRef.addGold === "function") {
+    playerStatsRef.addGold(gold);
+  }
+  if (typeof playerStatsRef.addScore === "function") {
+    playerStatsRef.addScore(score);
+  }
+
+  console.log(
+    `Reward for killing ${npc.id} (type=${npc.type}): +${gold} gold, +${score} score`
+  );
 }
 
 /**
@@ -261,13 +355,18 @@ function endBattle(won) {
   if (won && enemyId) {
     const npc = getNPCs().find((n) => n.id === enemyId);
     if (npc) {
+      // Give rewards + schedule respawn BEFORE removing the NPC
+      grantEnemyDefeatRewards(npc);
+
+      // Remove from whatever scene this mesh is actually in
       if (npc.mesh) {
-        // Remove from whatever scene actually owns this mesh (overworld or dungeon)
         if (npc.mesh.parent) {
           npc.mesh.parent.remove(npc.mesh);
         }
+        // Make sure AI / systems stop touching this
         npc.mesh = null;
       }
+
       npc.talkable = false;
       npc.hostile = false;
     }
@@ -279,10 +378,21 @@ function endBattle(won) {
 }
 
 
+
+
 // --- enemy damage & rewards ---
 
 function applyDamageToEnemy(dmg, npc) {
+  if (!npc) return;
+
   enemyHP -= dmg;
+
+  // keep NPC's health stat in sync with the battle HP, if present
+  const stats = ensureNPCStats(npc);
+  if (stats && stats.health) {
+    stats.health.currentHP = enemyHP;
+  }
+
   console.log(`Player hit ${npc.id} for ${dmg}. enemyHP=${enemyHP}`);
   flashNPC(npc, 0xff0000, 150);
   if (enemyHP <= 0) {
@@ -290,46 +400,14 @@ function applyDamageToEnemy(dmg, npc) {
   }
 }
 
+
 function grantEnemyDefeatRewards(npc) {
-  if (!playerStatsRef) return;
+  if (!playerStatsRef || !npc) return;
 
-  const type = npc.type || "melee";
+  // 1) Give gold / score via existing helper
+  rewardForKill(npc);
 
-  let goldMin = 5;
-  let goldMax = 10;
-  let scoreGain = 10;
-
-  switch (type) {
-    case "melee":
-      goldMin = 5;
-      goldMax = 10;
-      scoreGain = 10;
-      break;
-    case "bow":
-      goldMin = 8;
-      goldMax = 14;
-      scoreGain = 12;
-      break;
-    case "tank":
-      goldMin = 10;
-      goldMax = 18;
-      scoreGain = 15;
-      break;
-    default:
-      break;
-  }
-
-  const goldBase = goldMin + Math.random() * (goldMax - goldMin);
-  const goldMultiplier = 1 + (difficultyLevel - 1) * 0.25;
-  const goldDrop = Math.round(goldBase * goldMultiplier);
-
-  if (typeof playerStatsRef.addGold === "function") {
-    playerStatsRef.addGold(goldDrop);
-  }
-  if (typeof playerStatsRef.addScore === "function") {
-    playerStatsRef.addScore(scoreGain);
-  }
-
+  // 2) Track total enemies defeated + difficulty scaling
   enemiesDefeated += 1;
 
   if (enemiesDefeated > 0 && enemiesDefeated % 3 === 0) {
@@ -339,19 +417,38 @@ function grantEnemyDefeatRewards(npc) {
     );
   }
 
-  // Monster generator: ONLY spawn new monsters if we're in the dungeon.
+  // 3) Dungeon-only respawn with a short delay
   try {
-    if (typeof getInDungeonMode === "function" && getInDungeonMode()) {
-      spawnRandomMonster(difficultyLevel);
+    if (typeof getInDungeonMode === "function") {
+      const delayMs = 800; // ~0.8s delay before the next dungeon enemy spawns
+
+      window.setTimeout(() => {
+        try {
+          const stillInDungeon = getInDungeonMode();
+          console.log(
+            `[BattleSystem] delayed spawn check: stillInDungeon=${stillInDungeon}, difficulty=${difficultyLevel}`
+          );
+
+          if (stillInDungeon) {
+            console.log(
+              `[BattleSystem] Spawning new dungeon monster (difficulty ${difficultyLevel}) after delay.`
+            );
+            spawnRandomMonster(difficultyLevel);
+          } else {
+            console.log(
+              "[BattleSystem] Skipped respawn because player left dungeon."
+            );
+          }
+        } catch (err) {
+          console.warn("battleSystem: delayed spawnRandomMonster failed", err);
+        }
+      }, delayMs);
     }
   } catch (err) {
-    console.warn("battleSystem: spawnRandomMonster failed", err);
+    console.warn("battleSystem: spawnRandomMonster scheduling failed", err);
   }
-
-  console.log(
-    `[BattleSystem] Rewards: +${goldDrop} gold, +${scoreGain} score (difficulty ${difficultyLevel})`
-  );
 }
+
 
 // --- UI Buttons for player melee attacks (debug) ---
 
@@ -457,9 +554,9 @@ function flashNPC(npc, colorHex, ms) {
     setTimeout(() => {
       try {
         npc.mesh.material.color.set(prev);
-      } catch (e) {}
+      } catch (e) { }
     }, ms);
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function highlightEnemyMesh(on) {
@@ -483,16 +580,21 @@ function highlightEnemyMesh(on) {
 }
 
 // --- Player HP handling ---
-
 export function playerTakeDamage(amount, sourceNpcId) {
   const dmg = Math.max(0, Number(amount) || 0);
   if (dmg <= 0) return;
 
   if (playerStatsRef && typeof playerStatsRef.damage === "function") {
     try {
+      // Apply damage through the stats object
       playerStatsRef.damage(dmg);
+
       if (typeof playerStatsRef.getHealth === "function") {
-        playerHP = Number(playerStatsRef.getHealth()) || playerHP;
+        const reported = Number(playerStatsRef.getHealth());
+        // IMPORTANT: don't use `||` here, because 0 is valid
+        if (!Number.isNaN(reported)) {
+          playerHP = reported;
+        }
       } else {
         playerHP = Math.max(0, playerHP - dmg);
       }
@@ -506,15 +608,38 @@ export function playerTakeDamage(amount, sourceNpcId) {
 
   console.log(
     `Player took ${dmg} damage` +
-      (sourceNpcId ? ` from ${sourceNpcId}` : "") +
-      `. playerHP=${playerHP}`
+    (sourceNpcId ? ` from ${sourceNpcId}` : "") +
+    `. playerHP=${playerHP}`
   );
 
   if (playerHP <= 0) {
+    // End the battle, but do NOT touch UI here.
     endBattle(false);
-    // TODO: proper death/respawn system
+
+    // Compute score to send with the event
+    let score = 0;
+    if (playerStatsRef && typeof playerStatsRef.getScore === "function") {
+      try {
+        const s = Number(playerStatsRef.getScore());
+        if (!Number.isNaN(s)) score = s;
+      } catch (err) {
+        score = 0;
+      }
+    }
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent("player-dead", {
+          detail: { score },
+        })
+      );
+    } catch (err) {
+      console.warn("battleSystem: failed to dispatch player-dead", err);
+    }
   }
 }
+
+
 
 function setNPCHostileSafe(id, hostile) {
   try {
