@@ -58,8 +58,11 @@ export function initUIManager(domElement, playerController, playerStats) {
   setupKeyHandlers();
   setupInventoryListeners();
 
+  setupDeathListeners();
+
   console.log("UI Manager initialized.");
 }
+
 
 function createUIRoot() {
   if (uiRoot) return;

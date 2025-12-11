@@ -739,23 +739,48 @@ export function getOverworldSceneRef() {
 // Monster generator: spawn a new hostile monster in the dungeon.
 // If dungeonSceneRef is missing, falls back to overworld (for safety/testing).
 export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ = null) {
-
   if (!TRef || (!dungeonSceneRef && !overworldSceneRef)) return null;
 
   const parentScene = dungeonSceneRef || overworldSceneRef;
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
-  const mat = new TRef.MeshStandardMaterial({ color: 0x993333 });
-  const mesh = new TRef.Mesh(npcGeo, mat);
 
+  // -----------------------------
   // Decide spawn position
+  // -----------------------------
   let spawnX, spawnZ;
 
   if (overrideX !== null && overrideZ !== null) {
-    // Dungeon-safe forced position
+    // Explicit forced position (used by spawnDungeonMonsterAt)
     spawnX = overrideX;
     spawnZ = overrideZ;
+  } else if (
+    dungeonSceneRef &&
+    Array.isArray(dungeonSceneRef.spawnCells) &&
+    dungeonSceneRef.spawnCells.length > 0
+  ) {
+    // Dungeon-safe fixed spawn cells from Dungeon.js
+    // Avoid cells too close to origin (player spawn)
+    const cells = dungeonSceneRef.spawnCells;
+    const minDist = 16;            // ≈ 2 tunnel segments away
+    const minDistSq = minDist * minDist;
+
+    let chosen = cells[0];
+
+    // Try a few times to get a "far enough" cell
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const idx = Math.floor(Math.random() * cells.length);
+      const c = cells[idx];
+      const d2 = c.x * c.x + c.z * c.z;
+      if (d2 >= minDistSq) {
+        chosen = c;
+        break;
+      }
+    }
+
+    spawnX = chosen.x;
+    spawnZ = chosen.z;
   } else {
-    // Original behavior: around the player
+    // Fallback: original behavior (around player)
     let centerX = 0;
     let centerZ = 0;
     if (playerRef && playerRef.mesh) {
@@ -769,37 +794,122 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
     spawnZ = centerZ + Math.sin(angle) * radius;
   }
 
+  // -----------------------------
+  // Type selection + stats
+  // -----------------------------
+  const id = `monster_${nextMonsterId++}`;
+
+  // Difficulty scaling factors
+  const speedScale = 1 + 0.15 * (difficulty - 1);
+  const damageScale = 1 + 0.2 * (difficulty - 1);
+
+  // Randomly choose type: melee / bow / tank
+  let type = "melee";
+  const roll = Math.random();
+  if (roll < 0.4) {
+    type = "melee";
+  } else if (roll < 0.7) {
+    type = "bow";
+  } else {
+    type = "tank";
+  }
+
+  let aiState;
+  let aiData = {};
+  let color = 0x993333;
+  let displayName = "Dungeon Monster";
+  let loggedMoveSpeed = 0;
+  let loggedDamage = 0;
+
+  if (type === "melee") {
+    // Red melee bandit-style
+    color = 0xaa3333;
+    displayName = "Dungeon Melee";
+    aiState = "chase";
+
+    const moveSpeed = MELEE_MOVE_SPEED * speedScale;
+    const damage = MELEE_DAMAGE * damageScale;
+
+    aiData = {
+      moveSpeed,
+      meleeDamage: damage,
+      inDesperation: false,
+    };
+
+    loggedMoveSpeed = moveSpeed;
+    loggedDamage = damage;
+  } else if (type === "bow") {
+    // Green archer-style
+    color = 0x33aa55;
+    displayName = "Dungeon Archer";
+    aiState = "aim";
+
+    const moveSpeedRun = BOW_MOVE_SPEED_RUN * speedScale;
+    const moveSpeedAim = BOW_MOVE_SPEED_AIM * speedScale;
+    const shotCooldown = Math.max(
+      0.4,
+      BOW_SHOT_COOLDOWN / (1 + 0.1 * (difficulty - 1))
+    );
+
+    aiData = {
+      moveSpeedRun,
+      moveSpeedAim,
+      shotCooldown,
+    };
+
+    loggedMoveSpeed = moveSpeedRun;
+    loggedDamage = BOW_ARROW_DAMAGE * damageScale;
+  } else {
+    // Blue tank-style
+    color = 0x555588;
+    displayName = "Dungeon Tank";
+    // Tank AI starts idle and will transition via updateTankAI
+    aiState = "idle";
+
+    const moveSpeed = TANK_MOVE_SPEED * speedScale;
+    const damage = TANK_DAMAGE * damageScale;
+
+    aiData = {
+      moveSpeed,
+      meleeDamage: damage,
+    };
+
+    loggedMoveSpeed = moveSpeed;
+    loggedDamage = damage;
+  }
+
+  // -----------------------------
+  // Create mesh & NPC struct
+  // -----------------------------
+  const mat = new TRef.MeshStandardMaterial({ color });
+  const mesh = new TRef.Mesh(npcGeo, mat);
   mesh.position.set(spawnX, 1, spawnZ);
   parentScene.add(mesh);
 
-
-  const id = `monster_${nextMonsterId++}`;
-
-  const moveSpeed = MELEE_MOVE_SPEED + 0.3 * (difficulty - 1);
-  const damage = MELEE_DAMAGE + 2 * (difficulty - 1);
-
   const npc = {
     id,
-    name: "Dungeon Monster",
+    name: displayName,
     mesh,
     talkable: false,
     hostile: true,
     dialogId: null,
-    type: "melee",
-    aiState: "chase",
-    aiData: {
-      moveSpeed,
-      meleeDamage: damage,
-    },
+    type,
+    aiState,
+    aiData,
     elite: difficulty >= 3,
-    team: null,
+    team: "bandits",
   };
 
   npcs.push(npc);
+
   console.log(
-    `[NPC SYSTEM] Spawned dungeon monster ${id} (difficulty ${difficulty}, moveSpeed=${moveSpeed.toFixed(
+    `[NPC SYSTEM] Spawned ${type} dungeon monster ${id} at (${spawnX.toFixed(
+      1
+    )}, ${spawnZ.toFixed(1)}) difficulty=${difficulty}, speed=${loggedMoveSpeed.toFixed(
       2
-    )}, dmg=${damage}).`
+    )}, dmg=${loggedDamage.toFixed(1)}`
   );
+
   return npc;
 }
+

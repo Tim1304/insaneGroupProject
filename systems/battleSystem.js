@@ -594,16 +594,21 @@ function highlightEnemyMesh(on) {
 }
 
 // --- Player HP handling ---
-
 export function playerTakeDamage(amount, sourceNpcId) {
   const dmg = Math.max(0, Number(amount) || 0);
   if (dmg <= 0) return;
 
   if (playerStatsRef && typeof playerStatsRef.damage === "function") {
     try {
+      // Apply damage through the stats object
       playerStatsRef.damage(dmg);
+
       if (typeof playerStatsRef.getHealth === "function") {
-        playerHP = Number(playerStatsRef.getHealth()) || playerHP;
+        const reported = Number(playerStatsRef.getHealth());
+        // IMPORTANT: don't use `||` here, because 0 is valid
+        if (!Number.isNaN(reported)) {
+          playerHP = reported;
+        }
       } else {
         playerHP = Math.max(0, playerHP - dmg);
       }
@@ -621,7 +626,7 @@ export function playerTakeDamage(amount, sourceNpcId) {
       `. playerHP=${playerHP}`
   );
 
-    if (playerHP <= 0) {
+  if (playerHP <= 0) {
     // End the battle, but do NOT touch UI here.
     endBattle(false);
 
@@ -629,7 +634,8 @@ export function playerTakeDamage(amount, sourceNpcId) {
     let score = 0;
     if (playerStatsRef && typeof playerStatsRef.getScore === "function") {
       try {
-        score = Number(playerStatsRef.getScore()) || 0;
+        const s = Number(playerStatsRef.getScore());
+        if (!Number.isNaN(s)) score = s;
       } catch (err) {
         score = 0;
       }
@@ -646,6 +652,7 @@ export function playerTakeDamage(amount, sourceNpcId) {
     }
   }
 }
+
 
 
 function setNPCHostileSafe(id, hostile) {

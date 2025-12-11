@@ -1,5 +1,3 @@
-// placeholders/playerPlaceholder.js
-
 // Player controller placeholder for testing camera, dialog, and UI.
 // Aiden will replace internals later, but should keep this API shape.
 import { getInDungeonMode, getDungeonSceneRef } from "../systems/npcSystem.js";
@@ -17,6 +15,9 @@ const KEY = {
 };
 
 let playerCollision = true;
+// 🔹 NEW: global flag to lock controls when dead
+let controlsLocked = false;
+
 export function createPlayerController(T, scene, mapInfo, playerStats) {
   //--- Player visual (simple box) ---
   const playerGeo = new T.BoxGeometry(1, 2, 1);
@@ -56,7 +57,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   let wasMoving = false;
   let lastMoveSpeed = moveSpeed;
 
-  // --- Vertical jump
+  // --- Vertical jump ---
   let velocityY = 0; // units per second
   const gravity = 30;
   const jumpStrength = 8; // initial jump velocity
@@ -77,8 +78,15 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   const arrowSpeed = 16;
   const arrowLifetime = 2.0; // seconds
 
+  // 🔹 NEW: lock controls when player-dead event fires
+  window.addEventListener("player-dead", () => {
+    controlsLocked = true;
+  });
+
   // --- Input listeners (keyboard) ---
   document.addEventListener("keydown", (e) => {
+    if (controlsLocked) return; // 🔹 ignore input when dead
+
     keys.add(e.code);
 
     // Weapon switching:
@@ -142,6 +150,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   });
 
   document.addEventListener("keyup", (e) => {
+    if (controlsLocked) return; // 🔹 ignore input when dead
     keys.delete(e.code);
   });
 
@@ -178,6 +187,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
   // --- Input listener (mouse attack) ---
   document.addEventListener("mousedown", (e) => {
+    if (controlsLocked) return; // 🔹 ignore attacks when dead
+
     // left button only
     if (e.button !== 0) return;
 
@@ -394,7 +405,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
           detail: {
             pos: player.position.clone(),
             range,
-              dmg,
+            dmg,
           },
         })
       );
@@ -531,6 +542,12 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
   // --- Public update called from game.js ---
   function update(dt) {
+    // 🔹 If dead, freeze movement/jumping/bobbing.
+    if (controlsLocked) {
+      // You *could* still move arrows here if you wanted, but dead = frozen, so:
+      return;
+    }
+
     updateVertical(dt);
     updateMovement(dt);
     updateBobbing(dt);
