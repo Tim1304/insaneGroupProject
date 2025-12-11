@@ -52,8 +52,6 @@ export class Birch extends T.Group {
         branch1a.name = "birch_branch1a";
         this.add(branch1a);
 
-        branch1.add(new T.AxesHelper(1));
-
         // Leaves
         let leavesTexture = new T.TextureLoader().load('./env/textures/leaves.jpg');
         let leafGeometry = new T.SphereGeometry(1.2, 8, 8);
@@ -604,6 +602,18 @@ export class LargeHouse extends T.Group {
 export class Tavern extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
+
+        const loader = new GLTFLoader();
+        let tavern;
+        const gltf = loader.load('./env/readyMades/tavern.glb', (gltf) => {
+            tavern = gltf.scene;
+            tavern.scale.set(1.7, 1.7, 1.7);
+            tavern.position.y += 1.7;
+            this.add(tavern);
+        });
+        this.add(gltf);
+
+        // Place and rescale based on passed params
         this.position.copy(position);
         this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
     }

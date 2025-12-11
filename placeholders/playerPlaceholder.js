@@ -18,9 +18,9 @@ const KEY = {
 
 let playerCollision = true;
 export function createPlayerController(T, scene, mapInfo, playerStats) {
-  // --- Player visual (simple box) ---
+  //--- Player visual (simple box) ---
   const playerGeo = new T.BoxGeometry(1, 2, 1);
-  const playerMat = new T.MeshStandardMaterial({ color: 0x3366ff });
+  const playerMat = new T.MeshStandardMaterial({ color: 0xffffff });
   const player = new T.Mesh(playerGeo, playerMat);
   player.position.set(0, 1, 0);
   scene.add(player);

@@ -169,10 +169,12 @@ function createTreeCluster(radius, numTrees) {
  */
 function createVillage() {
   // Houses around the center, rotated for a natural look
-  const house1 = new Gen.House(new T.Vector3(-10, 0, 0), 1);
-  house1.rotateY(Math.PI / 4);
-  scene.add(house1);
-  addStaticCollider(house1);
+
+  // Tavern
+  const tavern = new Gen.Tavern(new T.Vector3(-10, -1.5, 0), 4);
+  tavern.rotateY(Math.PI / 4);
+  scene.add(tavern);
+  addStaticCollider(tavern);
 
   const house2 = new Gen.House(new T.Vector3(10, 0, 6), 1);
   house2.rotateY(Math.PI / 2);
