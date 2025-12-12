@@ -115,95 +115,95 @@ export function registerTavernScene(tavernScene) {
 function createNPCs() {
   if (!TRef || !overworldSceneRef) return;
 
-  const npcGeo = new TRef.BoxGeometry(1, 2, 1);
+  // const npcGeo = new TRef.BoxGeometry(1, 2, 1);
 
-  // --- Money Test NPC (Rich Guy) ---
-  const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
-  const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
-  moneyMesh.position.set(2, 1, -3);
+  // // --- Money Test NPC (Rich Guy) ---
+  // const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
+  // const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
+  // moneyMesh.position.set(2, 1, -3);
 
-  overworldSceneRef.add(moneyMesh);
+  // overworldSceneRef.add(moneyMesh);
 
-  npcs.push({
-    id: "npc_money",
-    name: "Rich Guy",
-    mesh: moneyMesh,
-    talkable: true,
-    hostile: false,
-    dialogId: "moneyTest",    // MUST match dialogDefs.moneyTest
-    type: "neutral",
-    aiState: "idle",
-    aiData: {},
-    team: null,
-  });
+  // npcs.push({
+  //   id: "npc_money",
+  //   name: "Rich Guy",
+  //   mesh: moneyMesh,
+  //   talkable: true,
+  //   hostile: false,
+  //   dialogId: "moneyTest",    // MUST match dialogDefs.moneyTest
+  //   type: "neutral",
+  //   aiState: "idle",
+  //   aiData: {},
+  //   team: null,
+  // });
 
-  // Bandit – melee
-  const banditMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 2.3, "bandit");
-  banditMesh.position.set(-6, 0, 3);
-  overworldSceneRef.add(banditMesh);
+  // // Bandit – melee
+  // const banditMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 2.3, "bandit");
+  // banditMesh.position.set(-6, 0, 3);
+  // overworldSceneRef.add(banditMesh);
 
-  npcs.push({
-    id: "npc_bandit",
-    name: "Bandit",
-    mesh: banditMesh,
-    talkable: true,
-    hostile: false,
-    dialogId: "bandit",
-    type: "melee",
-    aiState: "idle",
-    aiData: {
-      moveSpeed: MELEE_MOVE_SPEED,
-      meleeDamage: MELEE_DAMAGE,
-      inDesperation: false,
-    },
-    elite: false,
-    team: "bandits",
-  });
+  // npcs.push({
+  //   id: "npc_bandit",
+  //   name: "Bandit",
+  //   mesh: banditMesh,
+  //   talkable: true,
+  //   hostile: false,
+  //   dialogId: "bandit",
+  //   type: "melee",
+  //   aiState: "idle",
+  //   aiData: {
+  //     moveSpeed: MELEE_MOVE_SPEED,
+  //     meleeDamage: MELEE_DAMAGE,
+  //     inDesperation: false,
+  //   },
+  //   elite: false,
+  //   team: "bandits",
+  // });
 
-  // Caster (formerly "archer")
-  const archerMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 2.3, "caster");
-  archerMesh.position.set(-2, 0, -10);
-  overworldSceneRef.add(archerMesh);
+  // // Caster (formerly "archer")
+  // const archerMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 2.3, "caster");
+  // archerMesh.position.set(-2, 0, -10);
+  // overworldSceneRef.add(archerMesh);
 
-  npcs.push({
-    id: "npc_archer_1",
-    name: "Archer",
-    mesh: archerMesh,
-    talkable: false,
-    hostile: false,
-    dialogId: null,
-    type: "bow",
-    aiState: "aim",
-    aiData: {
-      moveSpeedRun: BOW_MOVE_SPEED_RUN,
-      moveSpeedAim: BOW_MOVE_SPEED_AIM,
-      shotCooldown: BOW_SHOT_COOLDOWN,
-    },
-    elite: false,
-    team: "bandits",
-  });
+  // npcs.push({
+  //   id: "npc_archer_1",
+  //   name: "Archer",
+  //   mesh: archerMesh,
+  //   talkable: false,
+  //   hostile: false,
+  //   dialogId: null,
+  //   type: "bow",
+  //   aiState: "aim",
+  //   aiData: {
+  //     moveSpeedRun: BOW_MOVE_SPEED_RUN,
+  //     moveSpeedAim: BOW_MOVE_SPEED_AIM,
+  //     shotCooldown: BOW_SHOT_COOLDOWN,
+  //   },
+  //   elite: false,
+  //   team: "bandits",
+  // });
 
-  // Tank (devil)
-  const tankMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 1.7, "devil");
-  tankMesh.position.set(-6, 0, -8);
-  overworldSceneRef.add(tankMesh);
+  // // Tank (devil)
+  // const tankMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 1.7, "devil");
+  // tankMesh.position.set(-6, 0, -8);
+  // overworldSceneRef.add(tankMesh);
 
-  npcs.push({
-    id: "npc_tank_1",
-    name: "Tank",
-    mesh: tankMesh,
-    talkable: false,
-    hostile: false,
-    dialogId: null,
-    type: "tank",
-    aiState: "idle",
-    aiData: {
-      moveSpeed: TANK_MOVE_SPEED,
-      meleeDamage: TANK_DAMAGE,
-    },
-    elite: false,
-    team: "bandits",
-  });
+  // npcs.push({
+  //   id: "npc_tank_1",
+  //   name: "Tank",
+  //   mesh: tankMesh,
+  //   talkable: false,
+  //   hostile: false,
+  //   dialogId: null,
+  //   type: "tank",
+  //   aiState: "idle",
+  //   aiData: {
+  //     moveSpeed: TANK_MOVE_SPEED,
+  //     meleeDamage: TANK_DAMAGE,
+  //   },
+  //   elite: false,
+  //   team: "bandits",
+  // });
 }
 
 // -------------------------------------------------------

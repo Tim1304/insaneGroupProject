@@ -263,7 +263,7 @@ let textureCube = loader.load([
 ]);
 scene.background = textureCube;
 
-scene.add(new T.AxesHelper(5));
+//scene.add(new T.AxesHelper(5));
 
 function initDungeonScene(newDungeon) {
   // Tell NPC system and collision system about the new dungeon scene

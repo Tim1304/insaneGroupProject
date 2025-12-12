@@ -9,7 +9,7 @@ export class Tavern extends T.Scene {
     constructor() {
         super();
 
-        this.add(new T.AxesHelper(10));
+        //this.add(new T.AxesHelper(10));
 
         // Lighting
         const ambientLight = new T.AmbientLight(0xffffff, 1);
@@ -77,7 +77,7 @@ export class Tavern extends T.Scene {
 
         // worldObjects.js does NOT export Gen.Innkeeper.
         // Use Gen.Npc with mobType="innkeeper" instead.
-        const innkeeper = new Gen.Npc(innkeeperPos, 2.3, "innkeeper");
+        const innkeeper = new Gen.Npc(innkeeperPos, 3, "innkeeper");
 
         innkeeper.rotateY(Math.PI);
         this.add(innkeeper);
