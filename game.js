@@ -403,35 +403,40 @@ function animate(time) {
   aliveMobs = getAliveMobs();
   window.aliveMobs = aliveMobs; // keep the global in sync
 
-  // Ambient foliage animations (trees, bushes)
-  animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
+  aliveMobs.forEach((mob) => {
+    const mobType = mob.type;   // "melee" | "bow" | "tank"
+    const mobId = mob.id;
+  });
 
-  // Skybox color shift
-  timeSinceLastSkybox += dt;
-  if (timeSinceLastSkybox >= 5) {
-    if (currentSkybox === 0) {
-      dayToNight = true;
-    } else if (currentSkybox === 4) {
-      dayToNight = false;
-    }
-    timeSinceLastSkybox = 0;
-    currentSkybox += dayToNight ? 1 : -1;
-    console.log(`Switching to skybox ${currentSkybox}`);
-    loader.setPath(parentDir + `${currentSkybox}/`);
-    let textureCube = loader.load([
-      "left.png",
-      "right.png",
-      "top.png",
-      "bottom.png",
-      "back.png",
-      "front.png",
-    ]);
-    scene.background = textureCube;
+// Ambient foliage animations (trees, bushes)
+animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
+
+// Skybox color shift
+timeSinceLastSkybox += dt;
+if (timeSinceLastSkybox >= 5) {
+  if (currentSkybox === 0) {
+    dayToNight = true;
+  } else if (currentSkybox === 4) {
+    dayToNight = false;
   }
+  timeSinceLastSkybox = 0;
+  currentSkybox += dayToNight ? 1 : -1;
+  console.log(`Switching to skybox ${currentSkybox}`);
+  loader.setPath(parentDir + `${currentSkybox}/`);
+  let textureCube = loader.load([
+    "left.png",
+    "right.png",
+    "top.png",
+    "bottom.png",
+    "back.png",
+    "front.png",
+  ]);
+  scene.background = textureCube;
+}
 
-  renderer.render(activeScene, camera);
+renderer.render(activeScene, camera);
 
-  requestAnimationFrame(animate);
+requestAnimationFrame(animate);
 }
 
 requestAnimationFrame(animate);
