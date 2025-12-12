@@ -9,6 +9,18 @@ let overworldSceneRef = null;
 let dungeonSceneRef = null;
 let playerRef = null;
 
+let tavernSceneRef = null;
+let tavernInnkeeperRef = null;
+let inTavernMode = false;
+
+export function setInTavernMode(isInTavern) {
+  inTavernMode = !!isInTavern;
+}
+
+export function registerTavernInnkeeper(mesh) {
+  tavernInnkeeperRef = mesh;
+}
+
 /**
  * NPC structure:
  * {
@@ -649,6 +661,30 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
 
     return best;
   }
+
+  // --- TAVERN MODE: only tavern innkeeper is talkable ---
+  if (inTavernMode) {
+    if (!tavernInnkeeperRef) return null;
+
+    const dx = tavernInnkeeperRef.position.x - playerPosition.x;
+    const dy = tavernInnkeeperRef.position.y - playerPosition.y;
+    const dz = tavernInnkeeperRef.position.z - playerPosition.z;
+    const distSq = dx * dx + dy * dy + dz * dz;
+
+    if (distSq <= normalRangeSq) {
+      return {
+        id: "tavern_innkeeper",
+        name: "Innkeeper",
+        mesh: tavernInnkeeperRef,
+        talkable: true,
+        hostile: false,
+        dialogId: "innkeeper",
+        type: "neutral",
+      };
+    }
+    return null;
+  }
+
 
   // --- OVERWORLD: normal talkable NPCs first ---
   for (const npc of npcs) {

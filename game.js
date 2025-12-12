@@ -15,6 +15,8 @@ import {
   spawnRandomMonster,
   registerTavernEntrance,
   getAliveMobs,
+  setInTavernMode,
+  registerTavernInnkeeper,
 } from "./systems/npcSystem.js";
 
 
@@ -344,6 +346,35 @@ window.addEventListener("dungeon-exit-request", () => {
   camera.lookAt(0, 0, 0);
 });
 
+// Tavern exit
+window.addEventListener("tavern-exit-request", () => {
+  inTavern = false;
+  activeScene = scene;
+
+  setInTavernMode(false);
+  setCollisionDungeonMode(false);
+
+  // close dialog UI if it was open
+  window.dispatchEvent(new Event("force-dialog-end"));
+
+  if (playerController && playerController.mesh) {
+    scene.add(playerController.mesh);
+    // put player near tavern entrance in overworld
+    playerController.mesh.position.set(-10, 1, 4);
+  }
+
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 0, 0);
+});
+
+// Press F to exit Tavern
+window.addEventListener("keydown", (e) => {
+  if (e.code === "KeyF" && inTavern) {
+    window.dispatchEvent(new Event("tavern-exit-request"));
+  }
+});
+
+
 // Tavern enter
 window.addEventListener("tavern-enter-request", () => {
   // We are not in dungeon anymore
@@ -360,6 +391,8 @@ window.addEventListener("tavern-enter-request", () => {
       }
 
       activeScene = tavernScene;
+      setInTavernMode(true);
+      registerTavernInnkeeper(tavernScene.innkeeper);
 
       // Tavern is NOT "dungeon mode" for NPC logic or collision
       setInDungeonMode(false);
@@ -408,35 +441,35 @@ function animate(time) {
     const mobId = mob.id;
   });
 
-// Ambient foliage animations (trees, bushes)
-animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
+  // Ambient foliage animations (trees, bushes)
+  animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
 
-// Skybox color shift
-timeSinceLastSkybox += dt;
-if (timeSinceLastSkybox >= 5) {
-  if (currentSkybox === 0) {
-    dayToNight = true;
-  } else if (currentSkybox === 4) {
-    dayToNight = false;
+  // Skybox color shift
+  timeSinceLastSkybox += dt;
+  if (timeSinceLastSkybox >= 5) {
+    if (currentSkybox === 0) {
+      dayToNight = true;
+    } else if (currentSkybox === 4) {
+      dayToNight = false;
+    }
+    timeSinceLastSkybox = 0;
+    currentSkybox += dayToNight ? 1 : -1;
+    console.log(`Switching to skybox ${currentSkybox}`);
+    loader.setPath(parentDir + `${currentSkybox}/`);
+    let textureCube = loader.load([
+      "left.png",
+      "right.png",
+      "top.png",
+      "bottom.png",
+      "back.png",
+      "front.png",
+    ]);
+    scene.background = textureCube;
   }
-  timeSinceLastSkybox = 0;
-  currentSkybox += dayToNight ? 1 : -1;
-  console.log(`Switching to skybox ${currentSkybox}`);
-  loader.setPath(parentDir + `${currentSkybox}/`);
-  let textureCube = loader.load([
-    "left.png",
-    "right.png",
-    "top.png",
-    "bottom.png",
-    "back.png",
-    "front.png",
-  ]);
-  scene.background = textureCube;
-}
 
-renderer.render(activeScene, camera);
+  renderer.render(activeScene, camera);
 
-requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
 }
 
 requestAnimationFrame(animate);
