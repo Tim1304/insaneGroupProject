@@ -54,13 +54,6 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   weapons.push(hand);
   hand.visible = true;
 
-  // Simple "dummy" to hit (for debug)
-  const dummyGeo = new T.BoxGeometry(1, 2, 1);
-  const dummyMat = new T.MeshStandardMaterial({ color: 0x00ff00 });
-  const dummy = new T.Mesh(dummyGeo, dummyMat);
-  dummy.position.set(6, 1, 0);
-  scene.add(dummy);
-
   const playerStatsRef = playerStats || null;
 
   // --- Movement state ---
@@ -452,15 +445,6 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
     range = range * 2; // fudge factor
 
-    const dist = player.position.distanceTo(dummy.position);
-    if (dist < range) {
-      console.log(`Melee hit on dummy! dmg=${dmg} range=${range}`);
-      dummy.material.color.set(0xff0000); // flash red
-      setTimeout(() => dummy.material.color.set(0x00ff00), 200);
-    } else {
-      console.log(`Melee swing (no hit) range=${range}`);
-    }
-
     try {
       window.dispatchEvent(
         new CustomEvent("player-attack", {
@@ -584,15 +568,6 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       arrowInfo.mesh.position.add(
         arrowInfo.dir.clone().multiplyScalar(arrowSpeed * dt)
       );
-
-      const dist = arrowInfo.mesh.position.distanceTo(dummy.position);
-      if (dist < 1.2) {
-        console.log("Arrow hit dummy!");
-        dummy.material.color.set(0xff0000);
-        setTimeout(() => dummy.material.color.set(0x00ff00), 200);
-        if (arrowInfo.mesh && arrowInfo.mesh.userData) arrowInfo.mesh.userData._removed = true;
-        toRemove.push(idx);
-      }
     });
 
     for (let i = toRemove.length - 1; i >= 0; i--) {
