@@ -495,13 +495,13 @@ function spawnEnemyArrow(npc, playerPos) {
 
   const dir = target.clone().sub(origin).normalize();
 
-  const arrowGeo = new TRef.BoxGeometry(0.1, 0.1, 0.8);
+  // Small orange sphere instead of a box arrow
+  const arrowGeo = new TRef.SphereGeometry(0.15, 12, 12); // radius 0.15 = not too big
   const arrowMat = new TRef.MeshStandardMaterial({ color: 0xffaa00 });
   const arrow = new TRef.Mesh(arrowGeo, arrowMat);
 
   const spawnPos = origin.clone().add(dir.clone().multiplyScalar(0.8));
   arrow.position.copy(spawnPos);
-  arrow.lookAt(spawnPos.clone().add(dir));
 
   arrow.userData = arrow.userData || {};
   arrow.userData.isEnemyArrow = true;
@@ -603,6 +603,16 @@ export function spawnDungeonMonsterAt(x, z, difficulty = 1) {
 export function getNPCs() {
   return npcs;
 }
+
+// Return only "alive" hostile mobs (things that can still fight)
+// - must still have a mesh
+// - must be hostile (so neutral NPCs like innkeeper are excluded)
+export function getAliveMobs() {
+  return npcs.filter(
+    (npc) => npc && npc.mesh && npc.hostile
+  );
+}
+
 
 export function getNearestTalkableNPC(playerPosition, maxDistance) {
   if (!playerPosition) return null;

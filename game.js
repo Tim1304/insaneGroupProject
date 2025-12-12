@@ -14,7 +14,9 @@ import {
   setInDungeonMode,
   spawnRandomMonster,
   registerTavernEntrance,
+  getAliveMobs,
 } from "./systems/npcSystem.js";
+
 
 import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js";
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
@@ -68,6 +70,11 @@ let inTavern = false;
 let tavernScene = null;
 
 let hasSpawnedDungeonMonsters = false;
+
+let aliveMobs = [];
+
+// expose for debugging in console
+window.aliveMobs = aliveMobs;
 
 function spawnInitialDungeonMonsters() {
   for (let i = 0; i < 3; i++) {
@@ -393,6 +400,10 @@ function animate(time) {
   updateBattleSystem(dt);
   updateCollisionSystem(dt);
   updateUIManager(dt);
+
+  // Refresh the alive mobs array
+  aliveMobs = getAliveMobs();
+  window.aliveMobs = aliveMobs; // keep the global in sync
 
   // Ambient foliage animations (trees, bushes)
   animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
