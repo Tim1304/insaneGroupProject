@@ -616,6 +616,28 @@ export function getNPCs() {
   return npcs;
 }
 
+// Remove all NPCs whose meshes are attached to a given scene.
+// Used to wipe old dungeon mobs when regenerating the dungeon.
+export function removeNPCsInScene(scene) {
+  if (!scene) return;
+
+  for (const npc of npcs) {
+    if (!npc || !npc.mesh) continue;
+    if (npc.mesh.parent !== scene) continue;
+
+    try {
+      if (npc.mesh.parent) npc.mesh.parent.remove(npc.mesh);
+    } catch (e) {}
+
+    // Mark as removed/dead so other systems ignore it
+    npc.mesh = null;
+    npc.hostile = false;
+    npc.talkable = false;
+    npc.aiState = "idle";
+  }
+}
+
+
 // Return only "alive" hostile mobs (things that can still fight)
 // - must still have a mesh
 // - must be hostile (so neutral NPCs like innkeeper are excluded)
