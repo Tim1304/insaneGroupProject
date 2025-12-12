@@ -41,9 +41,6 @@ document.getElementById("div1").appendChild(renderer.domElement);
 
 // --- Scene & camera ---
 const scene = new T.Scene();
-// Test innkeeper
-const innkeeper = new Gen.Innkeeper(new T.Vector3(0, 0, 0), 2);
-scene.add(innkeeper);
 
 // Dungeon entrance (overworld)
 let dungeonEntrance = new Gen.DungeonEntrance(new T.Vector3(0, -3, 30), 7);
@@ -384,7 +381,8 @@ function animate(time) {
   const dt = (time - lastTime) / 1000 || 0;
   lastTime = time;
 
-  innkeeper.animate(dt);
+  if (tavernScene && inTavern)
+    tavernScene.innkeeper.animate(dt);
 
   playerController.update(dt);
   updateNPCSystem(dt);
