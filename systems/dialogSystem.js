@@ -441,3 +441,7 @@ function stripNodeForUI(node) {
     end: !!node.end,
   };
 }
+
+window.addEventListener("force-dialog-end", () => {
+  if (inDialog) endDialog();
+});

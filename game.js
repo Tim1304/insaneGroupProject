@@ -15,6 +15,9 @@ import {
   spawnRandomMonster,
   registerTavernEntrance,
   getAliveMobs,
+  setInTavernMode,
+  registerTavernInnkeeper,
+  removeNPCsInScene,
 } from "./systems/npcSystem.js";
 
 
@@ -262,58 +265,107 @@ scene.background = textureCube;
 
 scene.add(new T.AxesHelper(5));
 
+function initDungeonScene(newDungeon) {
+  // Tell NPC system and collision system about the new dungeon scene
+  registerDungeonScene(newDungeon);
+  registerDungeonSceneForCollision(newDungeon);
+
+  // Build a list of dungeon wall meshes to use as colliders
+  const dungeonWalls = [];
+  const tempBox = new T.Box3();
+
+  newDungeon.traverse((obj) => {
+    if (!obj.isMesh) return;
+
+    tempBox.setFromObject(obj);
+    const height = tempBox.max.y - tempBox.min.y;
+
+    if (height > 2.0) {
+      dungeonWalls.push(obj);
+    }
+  });
+
+  // Register dungeon walls as dungeon colliders
+  setDungeonColliders(dungeonWalls);
+
+  // Create and register the dungeon exit mesh inside this dungeon
+  const dungeonExitGeo = new T.BoxGeometry(2, 3, 0.5);
+  const dungeonExitMat = new T.MeshStandardMaterial({
+    color: 0x66ccff,
+    transparent: true,
+    opacity: 0.6,
+  });
+  const dungeonExit = new T.Mesh(dungeonExitGeo, dungeonExitMat);
+  dungeonExit.position.set(0, 1.5, -8);
+  newDungeon.add(dungeonExit);
+  registerDungeonExit(dungeonExit);
+}
+
+
 // --- Dungeon setup ---
-const dungeon = new Dungeon(3, playerController);
-registerDungeonScene(dungeon);
+// We regenerate this on every entry.
+let dungeon = new Dungeon(3, playerController);
+initDungeonScene(dungeon);
 
-// Tell the collision system about the dungeon scene
-registerDungeonSceneForCollision(dungeon);
-
-// Build a list of dungeon wall meshes to use as colliders
-const dungeonWalls = [];
-const tempBox = new T.Box3();
-
-dungeon.traverse((obj) => {
-  if (!obj.isMesh) return;
-
-  // Approximate filter: treat tall meshes as walls, ignore flat floors
-  tempBox.setFromObject(obj);
-  const height = tempBox.max.y - tempBox.min.y;
-
-  if (height > 2.0) {
-    dungeonWalls.push(obj);
+function buildNewDungeon() {
+  // If a previous dungeon exists, wipe its mobs first (important!)
+  if (dungeon) {
+    removeNPCsInScene(dungeon);
   }
-});
 
-// Register dungeon walls as dungeon colliders
-setDungeonColliders(dungeonWalls);
+  // Create a fresh dungeon instance (new procedural layout)
+  dungeon = new Dungeon(3, playerController);
 
+  // Tell systems about the new dungeon scene
+  registerDungeonScene(dungeon);
+  registerDungeonSceneForCollision(dungeon);
 
-// Simple dungeon exit object
-const dungeonExitGeo = new T.BoxGeometry(2, 3, 0.5);
-const dungeonExitMat = new T.MeshStandardMaterial({
-  color: 0x66ccff,
-  transparent: true,
-  opacity: 0.6,
-});
-const dungeonExit = new T.Mesh(dungeonExitGeo, dungeonExitMat);
-dungeonExit.position.set(0, 1.5, -8);
-dungeon.add(dungeonExit);
-registerDungeonExit(dungeonExit);
+  // Rebuild dungeon wall colliders list
+  const dungeonWalls = [];
+  const tempBox = new T.Box3();
+
+  dungeon.traverse((obj) => {
+    if (!obj.isMesh) return;
+
+    tempBox.setFromObject(obj);
+    const height = tempBox.max.y - tempBox.min.y;
+
+    if (height > 2.0) {
+      dungeonWalls.push(obj);
+    }
+  });
+
+  setDungeonColliders(dungeonWalls);
+
+  // Recreate the dungeon exit mesh (since this is a new scene)
+  const dungeonExitGeo = new T.BoxGeometry(2, 3, 0.5);
+  const dungeonExitMat = new T.MeshStandardMaterial({
+    color: 0x66ccff,
+    transparent: true,
+    opacity: 0.6,
+  });
+  const dungeonExit = new T.Mesh(dungeonExitGeo, dungeonExitMat);
+  dungeonExit.position.set(0, 1.5, -8);
+  dungeon.add(dungeonExit);
+  registerDungeonExit(dungeonExit);
+
+  // We want fresh mobs every entry
+  hasSpawnedDungeonMonsters = false;
+}
+
 
 // Dungeon enter
 window.addEventListener("dungeon-enter-request", () => {
+  buildNewDungeon(); // regenerates dungeon, sets colliders, exit, spawn flag
+
   inDungeon = true;
   activeScene = dungeon;
   setCollisionDungeonMode(true);
   setInDungeonMode(true);
 
   if (playerController && playerController.mesh) {
-    // Move player (and all its children like the sword) into the dungeon scene
     dungeon.add(playerController.mesh);
-
-    // Teleport player logically to dungeon location
-    playerController.mesh.position.set(0, 1, 0);  // use groundY
+    playerController.mesh.position.set(0, 1, 0);
   }
 
   if (!hasSpawnedDungeonMonsters) {
@@ -344,6 +396,35 @@ window.addEventListener("dungeon-exit-request", () => {
   camera.lookAt(0, 0, 0);
 });
 
+// Tavern exit
+window.addEventListener("tavern-exit-request", () => {
+  inTavern = false;
+  activeScene = scene;
+
+  setInTavernMode(false);
+  setCollisionDungeonMode(false);
+
+  // close dialog UI if it was open
+  window.dispatchEvent(new Event("force-dialog-end"));
+
+  if (playerController && playerController.mesh) {
+    scene.add(playerController.mesh);
+    // put player near tavern entrance in overworld
+    playerController.mesh.position.set(-10, 1, 4);
+  }
+
+  camera.position.set(0, 5, 10);
+  camera.lookAt(0, 0, 0);
+});
+
+// Press F to exit Tavern
+window.addEventListener("keydown", (e) => {
+  if (e.code === "KeyF" && inTavern) {
+    window.dispatchEvent(new Event("tavern-exit-request"));
+  }
+});
+
+
 // Tavern enter
 window.addEventListener("tavern-enter-request", () => {
   // We are not in dungeon anymore
@@ -360,6 +441,8 @@ window.addEventListener("tavern-enter-request", () => {
       }
 
       activeScene = tavernScene;
+      setInTavernMode(true);
+      registerTavernInnkeeper(tavernScene.innkeeper);
 
       // Tavern is NOT "dungeon mode" for NPC logic or collision
       setInDungeonMode(false);
