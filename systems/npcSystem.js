@@ -106,7 +106,7 @@ function createNPCs() {
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
 
   // Innkeeper – neutral, dialog only
-  let innMesh = new Gen.Innkeeper(new TRef.Vector3(4, 0, 0), 2);
+  let innMesh = new Gen.Npc(new TRef.Vector3(4, 0, 0), 2, "innkeeper");
   innMesh.position.set(4, 0, 0);
   overworldSceneRef.add(innMesh);
 
@@ -144,9 +144,8 @@ function createNPCs() {
   });
 
   // Bandit – melee
-  const banditMat = new TRef.MeshStandardMaterial({ color: 0xaa3333 });
-  const banditMesh = new TRef.Mesh(npcGeo, banditMat);
-  banditMesh.position.set(-6, 1, 3);
+  const banditMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 2.3, "bandit");
+  banditMesh.position.set(-6, 0, 3);
   overworldSceneRef.add(banditMesh);
 
   npcs.push({
@@ -167,10 +166,9 @@ function createNPCs() {
     team: "bandits",
   });
 
-  // Archer
-  const archerMat = new TRef.MeshStandardMaterial({ color: 0x33aa55 });
-  const archerMesh = new TRef.Mesh(npcGeo, archerMat);
-  archerMesh.position.set(-2, 1, -10);
+  // Caster (formerly "archer")
+  const archerMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 2.3, "caster");
+  archerMesh.position.set(-2, 0, -10);
   overworldSceneRef.add(archerMesh);
 
   npcs.push({
@@ -191,10 +189,9 @@ function createNPCs() {
     team: "bandits",
   });
 
-  // Tank
-  const tankMat = new TRef.MeshStandardMaterial({ color: 0x555588 });
-  const tankMesh = new TRef.Mesh(npcGeo, tankMat);
-  tankMesh.position.set(-6, 1, -8);
+  // Tank (devil)
+  const tankMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 1.7, "devil");
+  tankMesh.position.set(-6, 0, -8);
   overworldSceneRef.add(tankMesh);
 
   npcs.push({
@@ -789,8 +786,6 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
   const parentScene = inDungeon ? dungeonSceneRef : overworldSceneRef;
   if (!parentScene) return null;
 
-  const npcGeo = new TRef.BoxGeometry(1, 2, 1);
-
   // -----------------------------
   // Decide spawn position
   // -----------------------------
@@ -840,6 +835,7 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
     const roll = Math.random();
     if (roll < 0.4) {
       type = "melee";
+
     } else if (roll < 0.7) {
       type = "bow";
     } else {
@@ -918,8 +914,15 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
   // -----------------------------
   // Create mesh and NPC entry
   // -----------------------------
-  const mat = new TRef.MeshStandardMaterial({ color });
-  const mesh = new TRef.Mesh(npcGeo, mat);
+  let variant;
+  if (type === "melee") {
+    variant = "bandit";
+  } else if (type === "bow") {
+    variant = "caster";
+  } else if (type === "tank") {
+    variant = "devil";
+  }
+  const mesh = new Gen.Npc(new TRef.Vector3(spawnX, 0, spawnZ), 2, variant);
   mesh.position.set(spawnX, 1, spawnZ);
   parentScene.add(mesh);
 

@@ -391,6 +391,10 @@ function animate(time) {
   if (tavernScene && inTavern)
     tavernScene.innkeeper.animate(dt);
 
+  getAliveMobs().forEach((mob) => {
+    mob["mesh"].animate(dt);
+  });
+
   playerController.update(dt);
   updateNPCSystem(dt);
   updateDialogSystem(dt);
@@ -408,35 +412,35 @@ function animate(time) {
     const mobId = mob.id;
   });
 
-// Ambient foliage animations (trees, bushes)
-animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
+  // Ambient foliage animations (trees, bushes)
+  animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
 
-// Skybox color shift
-timeSinceLastSkybox += dt;
-if (timeSinceLastSkybox >= 5) {
-  if (currentSkybox === 0) {
-    dayToNight = true;
-  } else if (currentSkybox === 4) {
-    dayToNight = false;
+  // Skybox color shift
+  timeSinceLastSkybox += dt;
+  if (timeSinceLastSkybox >= 5) {
+    if (currentSkybox === 0) {
+      dayToNight = true;
+    } else if (currentSkybox === 4) {
+      dayToNight = false;
+    }
+    timeSinceLastSkybox = 0;
+    currentSkybox += dayToNight ? 1 : -1;
+    console.log(`Switching to skybox ${currentSkybox}`);
+    loader.setPath(parentDir + `${currentSkybox}/`);
+    let textureCube = loader.load([
+      "left.png",
+      "right.png",
+      "top.png",
+      "bottom.png",
+      "back.png",
+      "front.png",
+    ]);
+    scene.background = textureCube;
   }
-  timeSinceLastSkybox = 0;
-  currentSkybox += dayToNight ? 1 : -1;
-  console.log(`Switching to skybox ${currentSkybox}`);
-  loader.setPath(parentDir + `${currentSkybox}/`);
-  let textureCube = loader.load([
-    "left.png",
-    "right.png",
-    "top.png",
-    "bottom.png",
-    "back.png",
-    "front.png",
-  ]);
-  scene.background = textureCube;
-}
 
-renderer.render(activeScene, camera);
+  renderer.render(activeScene, camera);
 
-requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
 }
 
 requestAnimationFrame(animate);

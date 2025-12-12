@@ -1,6 +1,6 @@
 // Player controller placeholder for testing camera, dialog, and UI.
 // Aiden will replace internals later, but should keep this API shape.
-import { getInDungeonMode, getDungeonSceneRef } from "../systems/npcSystem.js";
+import { getInDungeonMode, getDungeonSceneRef, getAliveMobs } from "../systems/npcSystem.js";
 import { setPlayerCollisionEnabled } from "../systems/collisionSystem.js";
 import * as Gen from "../env/worldObjects.js";
 
@@ -610,13 +610,10 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       return;
     }
     // Weapon animation
-    console.log("isSwinging: ", isSwinging);
     if (isSwinging) {
       if (currentWeapon === "bow" && bow) {
-        console.log("Swinging");
         isSwinging = bow.animateSwing(dt);
       } else if (currentWeapon === "sword" && dagger) {
-        console.log("Swinging");
         isSwinging = dagger.animateSwing(dt);
       } else {
         isSwinging = hand.animateSwing(dt);

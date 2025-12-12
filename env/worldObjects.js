@@ -1022,16 +1022,33 @@ export class Table extends T.Group {
     }
 }
 
-export class Innkeeper extends T.Group {
-    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
+/**
+ * either "bandit", "caster", "devil", or innkeeper
+ */
+export class Npc extends T.Group {
+    constructor(position = new T.Vector3(0, 0, 0), scale = 1, mobType) {
         super();
 
         this.mixer = null;
 
         const loader = new GLTFLoader();
-        loader.load("./env/readyMades/innkeeper.glb", (gltf) => {
-            const innkeeper = gltf.scene;
-            innkeeper.traverse((child) => {
+        let path;
+        if (mobType === "bandit")
+            path = "./env/readyMades/bandit.glb";
+        else if (mobType === "caster")
+            path = "./env/readyMades/caster.glb";
+        else if (mobType === "devil")
+            path = "./env/readyMades/devil.glb";
+        else if (mobType === "innkeeper")
+            path = "./env/readyMades/innkeeper.glb";
+        else {
+            console.error(`Mob type "${mobType}" not recognized!`);
+            return;
+        }
+
+        loader.load(path, (gltf) => {
+            const caster = gltf.scene;
+            caster.traverse((child) => {
                 if (child.isMesh && child.material) {
                     child.castShadow = true;
                     child.receiveShadow = true;
@@ -1053,11 +1070,11 @@ export class Innkeeper extends T.Group {
             });
 
             // Keep the model compact relative to the player scale
-            innkeeper.scale.set(0.8, 0.8, 0.8);
-            this.add(innkeeper);
+            caster.scale.set(0.8, 0.8, 0.8);
+            this.add(caster);
 
             if (gltf.animations && gltf.animations.length > 0) {
-                this.mixer = new T.AnimationMixer(innkeeper);
+                this.mixer = new T.AnimationMixer(caster);
                 gltf.animations.forEach((clip) => {
                     const action = this.mixer.clipAction(clip);
                     action.setLoop(T.LoopRepeat, Infinity);
@@ -1077,57 +1094,4 @@ export class Innkeeper extends T.Group {
     }
 }
 
-export class Bandit extends T.Group {
-    constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
-        super();
 
-        this.mixer = null;
-
-        const loader = new GLTFLoader();
-        loader.load("./env/readyMades/bandit.glb", (gltf) => {
-            const bandit = gltf.scene;
-            bandit.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-
-                    let mat = child.material;
-
-                    // Force opaque rendering
-                    mat.transparent = false;
-                    mat.alphaTest = 0.0;
-                    mat.depthWrite = true;
-                    mat.depthTest = true;
-                    mat.blending = T.NormalBlending;
-
-                    // If alpha channel exists in texture, ignore it
-                    if (mat.alphaMap) {
-                        mat.alphaMap = null;
-                    }
-                }
-            });
-
-            // Keep the model compact relative to the player scale
-            bandit.scale.set(0.8, 0.8, 0.8);
-            this.add(bandit);
-
-            if (gltf.animations && gltf.animations.length > 0) {
-                this.mixer = new T.AnimationMixer(bandit);
-                gltf.animations.forEach((clip) => {
-                    const action = this.mixer.clipAction(clip);
-                    action.setLoop(T.LoopRepeat, Infinity);
-                    action.play();
-                });
-            }
-        });
-
-        this.position.copy(position);
-        this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);
-    }
-
-    animate(dt) {
-        if (this.mixer) {
-            this.mixer.update(dt);
-        }
-    }
-}
