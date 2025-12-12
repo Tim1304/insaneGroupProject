@@ -115,29 +115,29 @@ export function registerTavernScene(tavernScene) {
 function createNPCs() {
   if (!TRef || !overworldSceneRef) return;
 
-  // const npcGeo = new TRef.BoxGeometry(1, 2, 1);
+  const npcGeo = new TRef.BoxGeometry(1, 2, 1);
 
   // // --- Money Test NPC (Rich Guy) ---
-  // const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
-  // const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
-  // moneyMesh.position.set(2, 1, -3);
+  const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
+  const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
+  moneyMesh.position.set(2, 1, -30);
 
-  // overworldSceneRef.add(moneyMesh);
+  overworldSceneRef.add(moneyMesh);
 
-  // npcs.push({
-  //   id: "npc_money",
-  //   name: "Rich Guy",
-  //   mesh: moneyMesh,
-  //   talkable: true,
-  //   hostile: false,
-  //   dialogId: "moneyTest",    // MUST match dialogDefs.moneyTest
-  //   type: "neutral",
-  //   aiState: "idle",
-  //   aiData: {},
-  //   team: null,
-  // });
+  npcs.push({
+    id: "npc_money",
+    name: "Rich Guy",
+    mesh: moneyMesh,
+    talkable: true,
+    hostile: false,
+    dialogId: "moneyTest",    // MUST match dialogDefs.moneyTest
+    type: "neutral",
+    aiState: "idle",
+    aiData: {},
+    team: null,
+  });
 
-  // // Bandit – melee
+  // Bandit – melee
   // const banditMesh = new Gen.Npc(new TRef.Vector3(0, 0, 0), 2.3, "bandit");
   // banditMesh.position.set(-6, 0, 3);
   // overworldSceneRef.add(banditMesh);
