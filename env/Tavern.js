@@ -73,8 +73,9 @@ export class Tavern extends T.Scene {
         wall4.position.y += 0.5;
 
         // --- Innkeeper placed  ---
-        const innkeeperPos = new T.Vector3(0, -3, -2);
-        const innkeeper = new Gen.Innkeeper(innkeeperPos, 1.0);
+        const innkeeperPos = new T.Vector3(0, -2.5, 5);
+        const innkeeper = new Gen.Innkeeper(innkeeperPos, 4);
+        innkeeper.rotateY(Math.PI);
         this.add(innkeeper);
 
         // optional reference if you want later access
