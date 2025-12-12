@@ -67,7 +67,7 @@ const BOW_TOO_CLOSE = 8.0;
 const BOW_DANGER_RANGE = 3.0;
 const BOW_MOVE_SPEED_RUN = 5.0;
 const BOW_MOVE_SPEED_AIM = 2.5;
-const BOW_SHOT_COOLDOWN = 1.2;
+const BOW_SHOT_COOLDOWN = 2.5;
 const BOW_ARROW_DAMAGE = 8;
 const BOW_TANK_SUPPORT_RADIUS = 6.0;
 
@@ -116,24 +116,6 @@ function createNPCs() {
   if (!TRef || !overworldSceneRef) return;
 
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
-
-  // Innkeeper – neutral, dialog only
-  let innMesh = new Gen.Npc(new TRef.Vector3(4, 0, 0), 2, "innkeeper");
-  innMesh.position.set(4, 0, 0);
-  overworldSceneRef.add(innMesh);
-
-  npcs.push({
-    id: "npc_innkeeper",
-    name: "Innkeeper",
-    mesh: innMesh,
-    talkable: true,
-    hostile: false,
-    dialogId: "innkeeper",
-    type: "neutral",
-    aiState: "idle",
-    aiData: {},
-    team: null,
-  });
 
   // --- Money Test NPC (Rich Guy) ---
   const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });

@@ -61,7 +61,7 @@ export class Tavern extends T.Scene {
         wall4.position.set(-7.5, 0, 0);
         wall4.rotateY(Math.PI / 2);
         this.add(wall4);
-        
+
         let table = new Gen.Table(new T.Vector3(0, 0, 0), 11.5);
         this.add(table);
         table.scale.y = 15;
@@ -74,11 +74,16 @@ export class Tavern extends T.Scene {
 
         // --- Innkeeper placed  ---
         const innkeeperPos = new T.Vector3(0, -2.5, 5);
-        const innkeeper = new Gen.Innkeeper(innkeeperPos, 4);
+
+        // worldObjects.js does NOT export Gen.Innkeeper.
+        // Use Gen.Npc with mobType="innkeeper" instead.
+        const innkeeper = new Gen.Npc(innkeeperPos, 2.3, "innkeeper");
+
         innkeeper.rotateY(Math.PI);
         this.add(innkeeper);
 
-        // optional reference if you want later access
+        // reference used by game.js + npcSystem
         this.innkeeper = innkeeper;
+
     }
 }
