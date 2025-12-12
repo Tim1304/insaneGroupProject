@@ -117,24 +117,6 @@ function createNPCs() {
 
   const npcGeo = new TRef.BoxGeometry(1, 2, 1);
 
-  // Innkeeper – neutral, dialog only
-  let innMesh = new Gen.Npc(new TRef.Vector3(4, 0, 0), 2, "innkeeper");
-  innMesh.position.set(4, 0, 0);
-  overworldSceneRef.add(innMesh);
-
-  npcs.push({
-    id: "npc_innkeeper",
-    name: "Innkeeper",
-    mesh: innMesh,
-    talkable: true,
-    hostile: false,
-    dialogId: "innkeeper",
-    type: "neutral",
-    aiState: "idle",
-    aiData: {},
-    team: null,
-  });
-
   // --- Money Test NPC (Rich Guy) ---
   const moneyMat = new TRef.MeshStandardMaterial({ color: 0x88ff88 });
   const moneyMesh = new TRef.Mesh(npcGeo, moneyMat);
