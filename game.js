@@ -14,7 +14,9 @@ import {
   setInDungeonMode,
   spawnRandomMonster,
   registerTavernEntrance,
+  getAliveMobs,
 } from "./systems/npcSystem.js";
+
 
 import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js";
 import { initCameraSystem, updateCameraSystem } from "./systems/cameraSystem.js";
@@ -65,6 +67,11 @@ let inTavern = false;
 let tavernScene = null;
 
 let hasSpawnedDungeonMonsters = false;
+
+let aliveMobs = [];
+
+// expose for debugging in console
+window.aliveMobs = aliveMobs;
 
 function spawnInitialDungeonMonsters() {
   for (let i = 0; i < 3; i++) {
@@ -392,35 +399,44 @@ function animate(time) {
   updateCollisionSystem(dt);
   updateUIManager(dt);
 
-  // Ambient foliage animations (trees, bushes)
-  animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
+  // Refresh the alive mobs array
+  aliveMobs = getAliveMobs();
+  window.aliveMobs = aliveMobs; // keep the global in sync
 
-  // Skybox color shift
-  timeSinceLastSkybox += dt;
-  if (timeSinceLastSkybox >= 5) {
-    if (currentSkybox === 0) {
-      dayToNight = true;
-    } else if (currentSkybox === 4) {
-      dayToNight = false;
-    }
-    timeSinceLastSkybox = 0;
-    currentSkybox += dayToNight ? 1 : -1;
-    console.log(`Switching to skybox ${currentSkybox}`);
-    loader.setPath(parentDir + `${currentSkybox}/`);
-    let textureCube = loader.load([
-      "left.png",
-      "right.png",
-      "top.png",
-      "bottom.png",
-      "back.png",
-      "front.png",
-    ]);
-    scene.background = textureCube;
+  aliveMobs.forEach((mob) => {
+    const mobType = mob.type;   // "melee" | "bow" | "tank"
+    const mobId = mob.id;
+  });
+
+// Ambient foliage animations (trees, bushes)
+animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
+
+// Skybox color shift
+timeSinceLastSkybox += dt;
+if (timeSinceLastSkybox >= 5) {
+  if (currentSkybox === 0) {
+    dayToNight = true;
+  } else if (currentSkybox === 4) {
+    dayToNight = false;
   }
+  timeSinceLastSkybox = 0;
+  currentSkybox += dayToNight ? 1 : -1;
+  console.log(`Switching to skybox ${currentSkybox}`);
+  loader.setPath(parentDir + `${currentSkybox}/`);
+  let textureCube = loader.load([
+    "left.png",
+    "right.png",
+    "top.png",
+    "bottom.png",
+    "back.png",
+    "front.png",
+  ]);
+  scene.background = textureCube;
+}
 
-  renderer.render(activeScene, camera);
+renderer.render(activeScene, camera);
 
-  requestAnimationFrame(animate);
+requestAnimationFrame(animate);
 }
 
 requestAnimationFrame(animate);
