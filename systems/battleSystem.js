@@ -231,9 +231,6 @@ function onEnemyAttackPlayer(e) {
 /**
  * Begin a battle with a specific NPC id (any hostile NPC).
  */
-/**
- * Begin a battle with a specific NPC id (any hostile NPC).
- */
 function startBattle(npcIdParam) {
   if (inBattle) return;
 
