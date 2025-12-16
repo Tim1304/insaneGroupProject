@@ -189,12 +189,13 @@ export function startGame() {
   }
 
   function generateOverworld() {
-    createTreeCluster(15, 300);
+    createTreeCluster(15, 100);
     createVillage();
     addStaticCollider(dungeonEntrance);
   }
 
   generateOverworld();
+  //createVillage();
 
   // --- Resize handling ---
   window.addEventListener("resize", () => {
