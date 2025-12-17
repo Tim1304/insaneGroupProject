@@ -313,7 +313,7 @@ export function startGame(opts = {}) {
   }
 
   // --- Resize handling ---
-  window.addEventListener("resize", () => {
+  window.addEventListener("ressize", () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
     renderer.setSize(w, h);
