@@ -503,7 +503,7 @@ export class House extends T.Group {
 
             wallMaterial = new T.MeshStandardMaterial({ map: wallWindowTexture });
             doorMaterial = new T.MeshStandardMaterial({ map: wallDoorTexture });
-            roofMaterial = new T.MeshStandardMaterial({ map: roofTexture });
+            roofMaterial = new T.MeshStandardMaterial({ map: roofTexture, side = T.DoubleSide });
             gableMaterial = new T.MeshStandardMaterial({ map: gableTexture });
         }
 
