@@ -9,17 +9,50 @@ let overworldSceneRef = null;
 let dungeonSceneRef = null;
 let playerRef = null;
 
+let prototypeMode = false;
+
 let tavernSceneRef = null;
 let tavernInnkeeperRef = null;
 let inTavernMode = false;
+
+// Innkeeper can be stored as either an Object3D or a wrapper like { mesh: Object3D }.
+// Unwrap safely so dialog system never crashes.
+function unwrapObject3D(x) {
+  if (!x) return null;
+  if (x.isObject3D) return x;
+  if (x.mesh && x.mesh.isObject3D) return x.mesh;
+  if (x.group && x.group.isObject3D) return x.group;
+  // Some CS559-style wrappers use objects[0]
+  if (x.objects && Array.isArray(x.objects) && x.objects[0] && x.objects[0].isObject3D) {
+    return x.objects[0];
+  }
+  return null;
+}
+
+
+
+/**
+ * When true: monsters spawn as primitive geometry (no GLBs/textures).
+ * When false: monsters spawn as Gen.Npc (FULL mode).
+ */
+export function setPrototypeMode(flag) {
+  prototypeMode = !!flag;
+}
 
 export function setInTavernMode(isInTavern) {
   inTavernMode = !!isInTavern;
 }
 
-export function registerTavernInnkeeper(mesh) {
-  tavernInnkeeperRef = mesh;
+export function registerTavernInnkeeper(innkeeper) {
+  const obj = unwrapObject3D(innkeeper);
+  if (!obj) {
+    console.warn("[npcSystem] registerTavernInnkeeper: invalid innkeeper ref", innkeeper);
+    tavernInnkeeperRef = null;
+    return;
+  }
+  tavernInnkeeperRef = obj;
 }
+
 
 /**
  * NPC structure:
@@ -606,7 +639,7 @@ export function removeNPCsInScene(scene) {
 
     try {
       if (npc.mesh.parent) npc.mesh.parent.remove(npc.mesh);
-    } catch (e) {}
+    } catch (e) { }
 
     // Mark as removed/dead so other systems ignore it
     npc.mesh = null;
@@ -665,18 +698,19 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
 
   // --- TAVERN MODE: only tavern innkeeper is talkable ---
   if (inTavernMode) {
-    if (!tavernInnkeeperRef) return null;
+    const inn = unwrapObject3D(tavernInnkeeperRef);
+    if (!inn || !inn.position) return null;
 
-    const dx = tavernInnkeeperRef.position.x - playerPosition.x;
-    const dy = tavernInnkeeperRef.position.y - playerPosition.y;
-    const dz = tavernInnkeeperRef.position.z - playerPosition.z;
+    const dx = inn.position.x - playerPosition.x;
+    const dy = inn.position.y - playerPosition.y;
+    const dz = inn.position.z - playerPosition.z;
     const distSq = dx * dx + dy * dy + dz * dz;
 
     if (distSq <= normalRangeSq) {
       return {
         id: "tavern_innkeeper",
         name: "Innkeeper",
-        mesh: tavernInnkeeperRef,
+        mesh: inn,
         talkable: true,
         hostile: false,
         dialogId: "innkeeper",
@@ -685,6 +719,7 @@ export function getNearestTalkableNPC(playerPosition, maxDistance) {
     }
     return null;
   }
+
 
 
   // --- OVERWORLD: normal talkable NPCs first ---
@@ -811,6 +846,63 @@ export function getDungeonSceneRef() {
 
 export function getOverworldSceneRef() {
   return overworldSceneRef;
+}
+
+function createPrototypeMonsterMesh(type, color = 0xffffff) {
+  const g = new TRef.Group();
+
+  const bodyMat = new TRef.MeshStandardMaterial({
+    color,
+    roughness: 1.0,
+    metalness: 0.0,
+  });
+
+  // Body shape by type (simple silhouettes)
+  let body;
+  if (type === "tank") {
+    body = new TRef.Mesh(new TRef.BoxGeometry(1.4, 2.2, 1.4), bodyMat);
+  } else if (type === "bow") {
+    body = new TRef.Mesh(new TRef.CylinderGeometry(0.55, 0.65, 2.0, 12), bodyMat);
+  } else {
+    // melee default
+    body = new TRef.Mesh(new TRef.BoxGeometry(1.0, 2.0, 1.0), bodyMat);
+  }
+  body.position.y = 1.0;
+  g.add(body);
+
+  // Head
+  const head = new TRef.Mesh(new TRef.SphereGeometry(0.35, 12, 12), bodyMat);
+  head.position.y = 2.25;
+  g.add(head);
+
+  // “Weapon hint”
+  if (type === "bow") {
+    const bow = new TRef.Mesh(new TRef.TorusGeometry(0.45, 0.05, 10, 18, Math.PI * 1.2), bodyMat);
+    bow.rotation.z = Math.PI / 2;
+    bow.position.set(0.55, 1.25, 0.2);
+    g.add(bow);
+  } else if (type === "tank") {
+    const shield = new TRef.Mesh(new TRef.CylinderGeometry(0.55, 0.55, 0.12, 12), bodyMat);
+    shield.rotation.x = Math.PI / 2;
+    shield.position.set(0.9, 1.1, 0.0);
+    g.add(shield);
+  } else {
+    const dagger = new TRef.Mesh(new TRef.BoxGeometry(0.12, 0.9, 0.12), bodyMat);
+    dagger.position.set(0.55, 1.1, 0.0);
+    g.add(dagger);
+  }
+
+  // Important: other systems call mob.mesh.animate(dt)
+  g.userData._animT = 0;
+  g.animate = function (dt) {
+    this.userData._animT += dt;
+    // subtle “alive” motion
+    this.rotation.y += dt * 0.6;
+    body.position.y = 1.0 + 0.05 * Math.sin(this.userData._animT * 3.0);
+    head.position.y = 2.25 + 0.05 * Math.sin(this.userData._animT * 3.0 + 0.4);
+  };
+
+  return g;
 }
 
 
@@ -962,9 +1054,22 @@ export function spawnRandomMonster(difficulty = 1, overrideX = null, overrideZ =
   } else if (type === "tank") {
     variant = "devil";
   }
-  const mesh = new Gen.Npc(new TRef.Vector3(spawnX, 0, spawnZ), 2, variant);
-  mesh.position.set(spawnX, 1, spawnZ);
-  parentScene.add(mesh);
+
+  let mesh;
+
+  if (prototypeMode) {
+    // PROTOTYPE: primitive geometry
+    mesh = createPrototypeMonsterMesh(type, color);
+    mesh.position.set(spawnX, 1, spawnZ);
+    parentScene.add(mesh);
+  } else {
+    // FULL: original GLB-based NPCs
+    const meshFull = new Gen.Npc(new TRef.Vector3(spawnX, 0, spawnZ), 2, variant);
+    meshFull.position.set(spawnX, 1, spawnZ);
+    parentScene.add(meshFull);
+    mesh = meshFull;
+  }
+
 
   const id = `monster_${nextMonsterId++}`;
 

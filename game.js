@@ -18,6 +18,7 @@ import {
   setInTavernMode,
   registerTavernInnkeeper,
   removeNPCsInScene,
+  setPrototypeMode,
 } from "./systems/npcSystem.js";
 
 import { initDialogSystem, updateDialogSystem } from "./systems/dialogSystem.js";
@@ -43,9 +44,47 @@ import { Dungeon } from "./env/Dungeon.js";
 
 let _started = false;
 
-export function startGame() {
+function addStaticColliderWhenReady(obj, isDungeon = false, shrinkXZ = 1.0, shrinkY = 1.0) {
+  let done = false;
+
+  function hasAnyMesh(o) {
+    let found = false;
+    o.traverse((c) => {
+      if (c && c.isMesh) found = true;
+    });
+    return found;
+  }
+
+  function tick() {
+    if (done) return;
+
+    // Wait until GLTF children (meshes) exist
+    if (obj && obj.traverse && hasAnyMesh(obj)) {
+      addStaticCollider(obj, isDungeon, shrinkXZ, shrinkY);
+      done = true;
+      return;
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  tick();
+}
+
+
+/**
+ * @param {{mode?: "full" | "prototype"}=} opts
+ */
+export function startGame(opts = {}) {
   if (_started) return;
   _started = true;
+
+  const mode = opts && opts.mode ? opts.mode : "full";
+  const prototypeMode = mode === "prototype";
+
+  setPrototypeMode(prototypeMode);
+
+  console.log(`[Game] Starting in mode: ${prototypeMode ? "PROTOTYPE" : "FULL"}`);
 
   // --- Renderer setup ---
   const renderer = new T.WebGLRenderer({ antialias: true });
@@ -60,12 +99,6 @@ export function startGame() {
 
   // --- Scene & camera ---
   const scene = new T.Scene();
-
-  // Dungeon entrance (overworld)
-  let dungeonEntrance = new Gen.DungeonEntrance(new T.Vector3(0, -3, 30), 7);
-  dungeonEntrance.rotateY(Math.PI / 1.2);
-  scene.add(dungeonEntrance);
-  registerDungeonEntrance(dungeonEntrance);
 
   const camera = new T.PerspectiveCamera(
     75,
@@ -95,14 +128,77 @@ export function startGame() {
   dirLight.position.set(10, 20, 10);
   scene.add(dirLight);
 
-  // --- Map placeholder (Tim) ---
-  const mapInfo = createBasicMap(T, scene);
+  // --------------------------
+  // PROTOTYPE helpers (primitives only)
+  // --------------------------
+  function makeProtoMat(color) {
+    return new T.MeshStandardMaterial({ color });
+  }
+
+  function makeProtoBox(w, h, d, color) {
+    return new T.Mesh(new T.BoxGeometry(w, h, d), makeProtoMat(color));
+  }
+
+  function makeProtoCylinder(rTop, rBot, h, color) {
+    return new T.Mesh(new T.CylinderGeometry(rTop, rBot, h, 16), makeProtoMat(color));
+  }
+
+  function buildPrototypeDungeonEntrance() {
+    const cube = makeProtoBox(2.0, 2.0, 2.0, 0x3a3a3a);
+    cube.position.set(0, 1.0, 30); // same spot as your full cave entrance
+    return cube;
+  }
+
+  function buildPrototypeTavernEntrance() {
+    const cube = makeProtoBox(2.0, 2.0, 2.0, 0x5b3a2a);
+    cube.position.set(-10, 1.0, 0); // same “village tavern” region
+    return cube;
+  }
+
+  function buildPrototypeOverworldStatics() {
+    // a few trees/rocks as primitives, plus “village-ish” markers
+    for (let i = 0; i < 120; i++) {
+      const x = (Math.random() - 0.5) * 120;
+      const z = (Math.random() - 0.5) * 120;
+      if (Math.hypot(x, z) < 18) continue; // keep a clear center-ish area
+
+      // tree = trunk cylinder + canopy box
+      const trunk = makeProtoCylinder(0.35, 0.45, 3.0, 0x6b4a2f);
+      trunk.position.set(x, 1.5, z);
+      scene.add(trunk);
+      addStaticCollider(trunk, false, 0.9, 0.9);
+
+      const canopy = makeProtoBox(2.2, 2.2, 2.2, 0x2e6b3f);
+      canopy.position.set(x, 3.4, z);
+      scene.add(canopy);
+      addStaticCollider(canopy, false, 0.9, 0.9);
+    }
+
+    // simple plaza props near village
+    const well = makeProtoCylinder(1.2, 1.2, 1.2, 0x777777);
+    well.position.set(0, 0.6, 7);
+    scene.add(well);
+    addStaticCollider(well);
+
+    const house = makeProtoBox(8, 5, 8, 0x8a8a8a);
+    house.position.set(2, 2.5, -8);
+    scene.add(house);
+    addStaticCollider(house);
+  }
+
+  // --------------------------
+  // Map placeholder (Tim)
+  // NOTE: we pass opts so later we can remove textures inside mapPlaceholder.js
+  // (extra arg is harmless until that file is updated)
+  // --------------------------
+  const mapInfo = createBasicMap(T, scene, { mode });
 
   // --- Player stats (Aiden) ---
   const playerStats = createPlayerStats();
 
   // --- Player placeholder (Aiden) ---
-  const playerController = createPlayerController(T, scene, mapInfo, playerStats);
+  // NOTE: later we’ll make playerPlaceholder respect prototype mode (primitive weapons)
+  const playerController = createPlayerController(T, scene, mapInfo, playerStats, { mode });
 
   // --- systems ---
   initNPCSystem(T, scene, playerController);
@@ -160,7 +256,7 @@ export function startGame() {
     const tavern = new Gen.Tavern(new T.Vector3(-10, -1.5, 0), 4);
     tavern.rotateY(Math.PI / 4);
     scene.add(tavern);
-    addStaticCollider(tavern);
+    addStaticColliderWhenReady(tavern, false, 0.08, 0.08);
     registerTavernEntrance(tavern);
 
     const house2 = new Gen.House(new T.Vector3(10, 0, 6), 1);
@@ -188,14 +284,33 @@ export function startGame() {
     }
   }
 
-  function generateOverworld() {
-    createTreeCluster(15, 100);
-    createVillage();
+  // Dungeon entrance (overworld)
+  let dungeonEntrance = null;
+  if (prototypeMode) {
+    dungeonEntrance = buildPrototypeDungeonEntrance();
+    scene.add(dungeonEntrance);
     addStaticCollider(dungeonEntrance);
-  }
+    registerDungeonEntrance(dungeonEntrance);
+    // prototype village/tavern entrances
+    const tavernEntrance = buildPrototypeTavernEntrance();
+    scene.add(tavernEntrance);
+    addStaticCollider(tavernEntrance);
+    registerTavernEntrance(tavernEntrance);
 
-  generateOverworld();
-  //createVillage();
+    buildPrototypeOverworldStatics();
+  } else {
+    dungeonEntrance = new Gen.DungeonEntrance(new T.Vector3(0, -3, 30), 7);
+    dungeonEntrance.rotateY(Math.PI / 1.2);
+    scene.add(dungeonEntrance);
+    registerDungeonEntrance(dungeonEntrance);
+
+    function generateOverworld() {
+      createTreeCluster(15, 300);
+      createVillage();
+      addStaticCollider(dungeonEntrance);
+    }
+    generateOverworld();
+  }
 
   // --- Resize handling ---
   window.addEventListener("resize", () => {
@@ -211,18 +326,25 @@ export function startGame() {
   let dayToNight = true;
   let currentSkybox = 0;
   let timeSinceLastSkybox = 0;
+
   let parentDir = "./env/textures/sky/";
   const loader = new T.CubeTextureLoader();
-  loader.setPath(parentDir + `${currentSkybox}/`);
-  let textureCube = loader.load([
-    "left.png",
-    "right.png",
-    "top.png",
-    "bottom.png",
-    "back.png",
-    "front.png",
-  ]);
-  scene.background = textureCube;
+
+  if (prototypeMode) {
+    // No texture skybox in prototype mode
+    scene.background = new T.Color(0x101018);
+  } else {
+    loader.setPath(parentDir + `${currentSkybox}/`);
+    let textureCube = loader.load([
+      "left.png",
+      "right.png",
+      "top.png",
+      "bottom.png",
+      "back.png",
+      "front.png",
+    ]);
+    scene.background = textureCube;
+  }
 
   function spawnInitialDungeonMonsters() {
     for (let i = 0; i < 3; i++) {
@@ -260,13 +382,13 @@ export function startGame() {
   }
 
   // --- Dungeon setup ---
-  let dungeon = new Dungeon(3, playerController);
+  let dungeon = new Dungeon(3, playerController, { mode });
   initDungeonScene(dungeon);
 
   function buildNewDungeon() {
     if (dungeon) removeNPCsInScene(dungeon);
 
-    dungeon = new Dungeon(3, playerController);
+    dungeon = new Dungeon(3, playerController, { mode });
 
     registerDungeonScene(dungeon);
     registerDungeonSceneForCollision(dungeon);
@@ -370,14 +492,72 @@ export function startGame() {
     (async () => {
       try {
         if (!tavernScene) {
-          const mod = await import("./env/Tavern.js");
-          const Tavern = mod.Tavern;
-          tavernScene = new Tavern();
+          if (prototypeMode) {
+            // Primitive-only tavern interior
+            tavernScene = new T.Scene();
+
+            const amb = new T.AmbientLight(0xffffff, 0.6);
+            tavernScene.add(amb);
+
+            const dl = new T.DirectionalLight(0xffffff, 0.8);
+            dl.position.set(5, 10, 5);
+            tavernScene.add(dl);
+
+            const floor = new T.Mesh(
+              new T.BoxGeometry(20, 1, 20),
+              makeProtoMat(0x303030)
+            );
+            floor.position.set(0, -0.5, 0);
+            tavernScene.add(floor);
+
+            const wallN = makeProtoBox(20, 6, 1, 0x4a3a2f);
+            wallN.position.set(0, 2.5, -10);
+            tavernScene.add(wallN);
+
+            const wallS = makeProtoBox(20, 6, 1, 0x4a3a2f);
+            wallS.position.set(0, 2.5, 10);
+            tavernScene.add(wallS);
+
+            const wallE = makeProtoBox(1, 6, 20, 0x4a3a2f);
+            wallE.position.set(10, 2.5, 0);
+            tavernScene.add(wallE);
+
+            const wallW = makeProtoBox(1, 6, 20, 0x4a3a2f);
+            wallW.position.set(-10, 2.5, 0);
+            tavernScene.add(wallW);
+
+            // simple “innkeeper” as a capsule-like stack
+            const inn = new T.Group();
+            const body = makeProtoCylinder(0.6, 0.6, 2.0, 0x2f6aa0);
+            body.position.y = 1.0;
+            inn.add(body);
+            const head = new T.Mesh(new T.SphereGeometry(0.45, 16, 16), makeProtoMat(0xf1c9a5));
+            head.position.y = 2.2;
+            inn.add(head);
+            inn.position.set(0, 0, -4);
+            tavernScene.add(inn);
+
+            // mimic Tavern.js API used elsewhere
+            tavernScene.innkeeper = {
+              mesh: inn,
+              name: "Innkeeper",
+              animate: () => { },
+            };
+
+            registerTavernInnkeeper(tavernScene.innkeeper);
+          } else {
+            const mod = await import("./env/Tavern.js");
+            const Tavern = mod.Tavern;
+            tavernScene = new Tavern();
+          }
         }
 
         activeScene = tavernScene;
         setInTavernMode(true);
-        registerTavernInnkeeper(tavernScene.innkeeper);
+
+        if (!prototypeMode) {
+          registerTavernInnkeeper(tavernScene.innkeeper);
+        }
 
         setInDungeonMode(false);
         setCollisionDungeonMode(false);
@@ -403,7 +583,10 @@ export function startGame() {
     const dt = (time - lastTime) / 1000 || 0;
     lastTime = time;
 
-    if (tavernScene && inTavern) tavernScene.innkeeper.animate(dt);
+    // Only animate innkeeper if it exists and has animate()
+    if (tavernScene && inTavern && tavernScene.innkeeper && typeof tavernScene.innkeeper.animate === "function") {
+      tavernScene.innkeeper.animate(dt);
+    }
 
     getAliveMobs().forEach((mob) => {
       mob["mesh"].animate(dt);
@@ -422,24 +605,26 @@ export function startGame() {
 
     animatedEnvironment.forEach((obj) => obj.animateLeaves(dt));
 
-    timeSinceLastSkybox += dt;
-    if (timeSinceLastSkybox >= 5) {
-      if (currentSkybox === 0) dayToNight = true;
-      else if (currentSkybox === 4) dayToNight = false;
+    if (!prototypeMode) {
+      timeSinceLastSkybox += dt;
+      if (timeSinceLastSkybox >= 5) {
+        if (currentSkybox === 0) dayToNight = true;
+        else if (currentSkybox === 4) dayToNight = false;
 
-      timeSinceLastSkybox = 0;
-      currentSkybox += dayToNight ? 1 : -1;
+        timeSinceLastSkybox = 0;
+        currentSkybox += dayToNight ? 1 : -1;
 
-      loader.setPath(parentDir + `${currentSkybox}/`);
-      let textureCube = loader.load([
-        "left.png",
-        "right.png",
-        "top.png",
-        "bottom.png",
-        "back.png",
-        "front.png",
-      ]);
-      scene.background = textureCube;
+        loader.setPath(parentDir + `${currentSkybox}/`);
+        let textureCube = loader.load([
+          "left.png",
+          "right.png",
+          "top.png",
+          "bottom.png",
+          "back.png",
+          "front.png",
+        ]);
+        scene.background = textureCube;
+      }
     }
 
     renderer.render(activeScene, camera);

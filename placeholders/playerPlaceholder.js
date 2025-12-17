@@ -19,7 +19,137 @@ let playerCollision = true;
 // 🔹 NEW: global flag to lock controls when dead
 let controlsLocked = false;
 
-export function createPlayerController(T, scene, mapInfo, playerStats) {
+/**
+ * @param {*} T
+ * @param {*} scene
+ * @param {*} mapInfo
+ * @param {*} playerStats
+ * @param {{mode?: "full"|"prototype"}=} opts
+ */
+export function createPlayerController(T, scene, mapInfo, playerStats, opts = {}) {
+  const mode = opts && opts.mode ? opts.mode : "full";
+  const prototypeMode = mode === "prototype";
+
+  // ------------------------------------------------------------
+  // Prototype weapon builders (primitive geometry + simple anim API)
+  // ------------------------------------------------------------
+  function makeProtoMat(color) {
+    return new T.MeshStandardMaterial({ color, roughness: 1.0, metalness: 0.0 });
+  }
+
+  function makeProtoWeaponBase() {
+    return {
+      _swingT: 0,
+      _swingDur: 0.18,
+      startSwing() {
+        this._swingT = 0.00001;
+      },
+      // returns true while still swinging
+      animateSwing(dt) {
+        if (this._swingT <= 0) return false;
+        this._swingT += dt;
+        if (this._swingT >= this._swingDur) {
+          this._swingT = 0;
+          return false;
+        }
+        return true;
+      },
+    };
+  }
+
+  function makeProtoHand() {
+    const g = new T.Group();
+    const palm = new T.Mesh(new T.SphereGeometry(0.35, 16, 16), makeProtoMat(0xf1c9a5));
+    g.add(palm);
+
+    const api = makeProtoWeaponBase();
+    // override animation to be punch-like
+    api.animateSwing = function (dt) {
+      if (this._swingT <= 0) return false;
+      this._swingT += dt;
+      const t = Math.min(1, this._swingT / this._swingDur);
+      // small forward jab
+      g.position.z = 2 + 0.25 * Math.sin(t * Math.PI);
+      if (t >= 1) {
+        this._swingT = 0;
+        g.position.z = 2;
+        return false;
+      }
+      return true;
+    };
+
+    return Object.assign(g, api);
+  }
+
+  function makeProtoSword() {
+    const g = new T.Group();
+
+    const blade = new T.Mesh(new T.BoxGeometry(0.12, 1.3, 0.12), makeProtoMat(0xc9c9c9));
+    blade.position.y = 0.75;
+    g.add(blade);
+
+    const guard = new T.Mesh(new T.BoxGeometry(0.5, 0.08, 0.12), makeProtoMat(0x555555));
+    guard.position.y = 0.18;
+    g.add(guard);
+
+    const grip = new T.Mesh(new T.CylinderGeometry(0.06, 0.06, 0.35, 12), makeProtoMat(0x2a2a2a));
+    grip.position.y = -0.05;
+    g.add(grip);
+
+    const api = makeProtoWeaponBase();
+    // diagonal-ish swing around X/Y
+    api.animateSwing = function (dt) {
+      if (this._swingT <= 0) return false;
+      this._swingT += dt;
+      const t = Math.min(1, this._swingT / this._swingDur);
+      // swing arc
+      g.rotation.z = -0.7 + 1.4 * t;
+      g.rotation.x = 0.15 + 0.35 * Math.sin(t * Math.PI);
+      if (t >= 1) {
+        this._swingT = 0;
+        g.rotation.z = 0;
+        g.rotation.x = 0;
+        return false;
+      }
+      return true;
+    };
+
+    return Object.assign(g, api);
+  }
+
+  function makeProtoBow() {
+    const g = new T.Group();
+
+    // simple U bow using torus segment approximation:
+    // use a thin torus and rotate/scale (good enough)
+    const bow = new T.Mesh(new T.TorusGeometry(0.55, 0.05, 10, 24, Math.PI * 1.2), makeProtoMat(0x7a4a2a));
+    bow.rotation.z = Math.PI / 2;
+    g.add(bow);
+
+    // string line as thin box
+    const string = new T.Mesh(new T.BoxGeometry(0.02, 1.05, 0.02), makeProtoMat(0xeaeaea));
+    string.position.x = 0.0;
+    g.add(string);
+
+    const api = makeProtoWeaponBase();
+    // bow “draw” style animation
+    api.animateSwing = function (dt) {
+      if (this._swingT <= 0) return false;
+      this._swingT += dt;
+      const t = Math.min(1, this._swingT / this._swingDur);
+      // slight pull back
+      g.position.z = 2 + 0.12 * Math.sin(t * Math.PI);
+      if (t >= 1) {
+        this._swingT = 0;
+        g.position.z = 2;
+        return false;
+      }
+      return true;
+    };
+
+    return Object.assign(g, api);
+  }
+
   //--- Player visual (simple box) ---
   let isSwinging = false;
   let weapons = [];
@@ -31,28 +161,48 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   const weaponRoot = new T.Group();
   player.add(weaponRoot);
 
-  let dagger = new Gen.Dagger();
-  dagger.position.set(-1, 0, 2);
-  weaponRoot.add(dagger);
+  // Weapon instances
+  let dagger, bow, hand;
 
-  // start hidden; will only show when sword is equipped
-  dagger.visible = false;
+  if (prototypeMode) {
+    dagger = makeProtoSword();
+    dagger.position.set(-1, 0, 2);
+    weaponRoot.add(dagger);
+    dagger.visible = false;
 
-  let bow = new Gen.Bow();
-  bow.position.set(-1, 0, 2);
-  weaponRoot.add(bow);
-  weapons.push(bow);
+    bow = makeProtoBow();
+    bow.position.set(-1, 0, 2);
+    weaponRoot.add(bow);
+    weapons.push(bow);
+    bow.visible = false;
 
-  // start hidden; will only show when bow is equipped
-  bow.visible = false;
+    hand = makeProtoHand();
+    hand.position.set(-1, 0, 2);
+    weaponRoot.add(hand);
+    hand.rotateX(Math.PI / 4);
+    hand.rotateY(Math.PI / 2);
+    weapons.push(hand);
+    hand.visible = true;
+  } else {
+    dagger = new Gen.Dagger();
+    dagger.position.set(-1, 0, 2);
+    weaponRoot.add(dagger);
+    dagger.visible = false;
 
-  let hand = new Gen.Hand();
-  hand.position.set(-1, 0, 2);
-  weaponRoot.add(hand);
-  hand.rotateX(Math.PI / 4);
-  hand.rotateY(Math.PI / 2);
-  weapons.push(hand);
-  hand.visible = true;
+    bow = new Gen.Bow();
+    bow.position.set(-1, 0, 2);
+    weaponRoot.add(bow);
+    weapons.push(bow);
+    bow.visible = false;
+
+    hand = new Gen.Hand();
+    hand.position.set(-1, 0, 2);
+    weaponRoot.add(hand);
+    hand.rotateX(Math.PI / 4);
+    hand.rotateY(Math.PI / 2);
+    weapons.push(hand);
+    hand.visible = true;
+  }
 
   const playerStatsRef = playerStats || null;
 
@@ -70,7 +220,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
 
   // --- Head bobbing (camera) ---
   const bobEnabled = true;
-  const bobAmplitudeWalk = 0.06; // vertical bob amplitude 
+  const bobAmplitudeWalk = 0.06; // vertical bob amplitude
   const bobAmplitudeSprint = 0.12; // amplitude when sprinting
   const bobBaseFreq = 3.5;
   let bobTimer = 0.0;
@@ -128,7 +278,6 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
         }
       }
       setCurrentWeapon("sword");
-      console.log("WHAT");
       weapons.forEach((w) => w.visible = false);
       dagger.visible = true;
       return;
@@ -167,13 +316,12 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       if (isGrounded) {
         velocityY = jumpStrength;
         isGrounded = false;
-        // records jumps for speed stat 
+        // records jumps for speed stat
         try {
-          if (playerStatsRef && typeof playerStatsRef.recordJump === 'function') {
+          if (playerStatsRef && typeof playerStatsRef.recordJump === "function") {
             playerStatsRef.recordJump();
           }
-        } catch (err) {
-        }
+        } catch (err) { }
       }
     }
   });
@@ -223,6 +371,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
       weapons.forEach((w) => w.visible = false);
       dagger.visible = false;
       bow.visible = false;
+      hand.visible = true;
     }
   }
 
@@ -261,6 +410,9 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     // Clamp pitch a bit to avoid crazy angles
     const pitchLimit = Math.PI / 2 - 0.1;
     pitch = Math.max(-pitchLimit, Math.min(pitchLimit, newPitch));
+
+    // weaponRoot follows pitch slightly (keeps weapon “attached” to view)
+    weaponRoot.rotation.x = pitch * 0.65;
   }
 
   function getEyePosition() {
@@ -305,14 +457,15 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     // Apply speed stat (10% per level above 1)
     let speedLevel = 1;
     try {
-      if (playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
-        speedLevel = Math.max(1, Number(playerStatsRef.getStatLevel('speed')) || 1);
+      if (playerStatsRef && typeof playerStatsRef.getStatLevel === "function") {
+        speedLevel = Math.max(1, Number(playerStatsRef.getStatLevel("speed")) || 1);
       }
     } catch (err) {
       speedLevel = 1;
     }
     const effectiveBaseSpeed = moveSpeed * (1 + 0.1 * (Math.max(0, speedLevel - 1)));
     let currentSpeed = effectiveBaseSpeed;
+
     if (playerStatsRef && shiftPressed && moving && playerStatsRef.getStamina && playerStatsRef.setStamina) {
       const curStam = playerStatsRef.getStamina();
       const canSprint = curStam > 0;
@@ -357,8 +510,7 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     }
 
     // bobbing state
-    const currentlyMoving = velocity.lengthSq() > 0;
-    wasMoving = currentlyMoving;
+    wasMoving = velocity.lengthSq() > 0;
     lastMoveSpeed = currentSpeed;
   }
 
@@ -397,7 +549,6 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   }
 
   // --- Attack logic ---
-
   function attack() {
     isSwinging = true;
     if (currentWeapon === "sword") {
@@ -413,10 +564,12 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   function meleeAttack(weaponOverride) {
     const weapon = weaponOverride || currentWeapon;
 
-    // Trigger sword swing animation (alternating diagonal)
+    // Trigger sword swing animation
     if (weapon === "sword" && dagger && typeof dagger.startSwing === "function") {
       dagger.startSwing();
-      //isSwinging = true;
+    }
+    if (weapon === "hand" && hand && typeof hand.startSwing === "function") {
+      hand.startSwing();
     }
 
     // base stats
@@ -460,7 +613,6 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
     }
   }
 
-
   function createCrosshair() {
     if (crosshairEl) return;
     crosshairEl = document.createElement("div");
@@ -488,6 +640,9 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   }
 
   function bowAttack() {
+    // animate bow “draw” quickly if available
+    if (bow && typeof bow.startSwing === "function") bow.startSwing();
+
     const eye = getEyePosition();
     const dir = getForwardDirection();
 
@@ -509,12 +664,10 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
           typeof getDungeonSceneRef === "function"
             ? getDungeonSceneRef()
             : null;
-        if (dungeonScene) {
-          parentScene = dungeonScene;
-        }
+        if (dungeonScene) parentScene = dungeonScene;
       }
     } catch (err) {
-      // if anything goes wrong, we just fall back to the overworld scene
+      // fallback to overworld
     }
 
     parentScene.add(arrow);
@@ -538,8 +691,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
             dmg: (function () {
               let base = 15;
               try {
-                if (playerStatsRef && typeof playerStatsRef.getStatLevel === 'function') {
-                  const lvl = Number(playerStatsRef.getStatLevel('handEye')) || 1;
+                if (playerStatsRef && typeof playerStatsRef.getStatLevel === "function") {
+                  const lvl = Number(playerStatsRef.getStatLevel("handEye")) || 1;
                   const mult = 1 + 0.1 * Math.max(0, lvl - 1);
                   base = base * mult;
                 }
@@ -549,10 +702,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
           },
         })
       );
-    } catch (err) {
-    }
+    } catch (err) { }
   }
-
 
   function updateArrows(dt) {
     const toRemove = [];
@@ -581,9 +732,8 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
   // --- Public update called from game.js ---
   function update(dt) {
     // If dead, freeze movement/jumping/bobbing.
-    if (controlsLocked) {
-      return;
-    }
+    if (controlsLocked) return;
+
     // Weapon animation
     if (isSwinging) {
       if (currentWeapon === "bow" && bow) {
@@ -594,13 +744,14 @@ export function createPlayerController(T, scene, mapInfo, playerStats) {
         isSwinging = hand.animateSwing(dt);
       }
     }
+
     updateVertical(dt);
     updateMovement(dt);
     updateBobbing(dt);
     updateArrows(dt);
+
     player.rotation.y = Math.atan2(getForwardDirection().x, getForwardDirection().z);
   }
-
 
   return {
     mesh: player,

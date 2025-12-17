@@ -5,76 +5,113 @@
  * - large ground plane
  * - visual boundary walls
  * Returns basic collision bounds for the player.
+ *
+ * Supports:
+ *   createBasicMap(T, scene)                    // FULL default behavior
+ *   createBasicMap(T, scene, { mode: "prototype" }) // PROTOTYPE behavior
  */
-export function createBasicMap(T, scene) {
+export function createBasicMap(T, scene, opts = {}) {
+  const mode = opts && opts.mode ? opts.mode : "full";
+  const prototypeMode = mode === "prototype";
+
+  // -------------------------
   // Ground
+  // -------------------------
   const groundGeo = new T.PlaneGeometry(100, 100);
-  let groundTexture = new T.TextureLoader().load("./env/textures/grass.jpg");
-  groundTexture.wrapS = T.RepeatWrapping;
-  groundTexture.wrapT = T.RepeatWrapping;
-  groundTexture.repeat.set(20, 20);
-  const groundMat = new T.MeshStandardMaterial({
-    map: groundTexture,
-    side: T.DoubleSide,
-  });
-  const ground = new T.Mesh(groundGeo, groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = 0;
-  scene.add(ground);
 
-  // ATTRIBUTION: CoPilot with manual edits
-  // Generate grass tufts on the ground
-  const grassCount = 150000;
-  const grassGeometry = new T.BufferGeometry();
-  const grassPositions = [];
-  const grassColors = [];
+  let groundMat;
+  if (prototypeMode) {
+    // PROTOTYPE: no image textures
+    groundMat = new T.MeshStandardMaterial({
+      color: 0x2a2a2a,
+      roughness: 1.0,
+      metalness: 0.0,
+    });
+  } else {
+    // FULL: keep textured ground
+    let groundTexture = new T.TextureLoader().load("./env/textures/grass.jpg");
+    groundTexture.wrapS = T.RepeatWrapping;
+    groundTexture.wrapT = T.RepeatWrapping;
+    groundTexture.repeat.set(20, 20);
 
-  for (let i = 0; i < grassCount; i++) {
-    // Random position within ground bounds
-    const x = (Math.random() - 0.5) * 100;
-    const z = (Math.random() - 0.5) * 100;
-    const y = 0;
-
-    // Create a simple grass blade (thin vertical triangle)
-    const bladeHeight = 0.15 + Math.random() * 0.4;
-    const bladeWidth = 0.05;
-
-    // Three vertices for a triangle blade
-    // Random rotation angle for blade orientation
-    const angle = Math.random() * Math.PI * 2;
-    const cosA = Math.cos(angle);
-    const sinA = Math.sin(angle);
-    
-    // Base vertices rotated around Y axis
-    const x1 = -bladeWidth / 2;
-    const x2 = bladeWidth / 2;
-    
-    grassPositions.push(
-      x + x1 * cosA, y, z + x1 * sinA,
-      x + x2 * cosA, y, z + x2 * sinA,
-      x, y + bladeHeight, z
-    );
-
-    // Slight color variation for natural look
-    const greenShade = 0.1 + Math.random() * 0.3;
-    for (let j = 0; j < 3; j++) {
-      grassColors.push(0.2, greenShade, 0.1);
-    }
+    groundMat = new T.MeshStandardMaterial({
+      map: groundTexture,
+    });
   }
 
-  grassGeometry.setAttribute('position', new T.Float32BufferAttribute(grassPositions, 3));
-  grassGeometry.setAttribute('color', new T.Float32BufferAttribute(grassColors, 3));
+  const ground = new T.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  scene.add(ground);
 
-  const grassMaterial = new T.MeshBasicMaterial({
-    vertexColors: true,
-    side: T.DoubleSide
-  });
+  // -------------------------
+  // Grass tufts (visual-only)
+  // -------------------------
+  // In PROTOTYPE mode we skip it (keeps graybox feel + avoids huge geometry cost).
+  if (!prototypeMode) {
+    // ATTRIBUTION: CoPilot with manual edits
+    // Generate grass tufts on the ground
+    const grassCount = 150000;
+    const grassGeometry = new T.BufferGeometry();
+    const grassPositions = [];
+    const grassColors = [];
 
-  const grassMesh = new T.Mesh(grassGeometry, grassMaterial);
-  scene.add(grassMesh);
-  // END ATTRIBUTION
+    for (let i = 0; i < grassCount; i++) {
+      // Random position within ground bounds
+      const x = (Math.random() - 0.5) * 100;
+      const z = (Math.random() - 0.5) * 100;
+      const y = 0;
 
-  // Simple square “arena” walls for visual feedback
+      // Create a simple grass blade (thin vertical triangle)
+      const bladeHeight = 0.15 + Math.random() * 0.4;
+      const bladeWidth = 0.05;
+
+      // Random rotation angle for blade orientation
+      const angle = Math.random() * Math.PI * 2;
+      const cosA = Math.cos(angle);
+      const sinA = Math.sin(angle);
+
+      // Base vertices rotated around Y axis
+      const x1 = -bladeWidth / 2;
+      const x2 = bladeWidth / 2;
+
+      grassPositions.push(
+        x + x1 * cosA, y, z + x1 * sinA,
+        x + x2 * cosA, y, z + x2 * sinA,
+        x, y + bladeHeight, z
+      );
+
+      // Random green shade
+      const g = 0.5 + Math.random() * 0.5;
+      grassColors.push(
+        0.1, g, 0.1,
+        0.1, g, 0.1,
+        0.1, g, 0.1
+      );
+    }
+
+    grassGeometry.setAttribute(
+      "position",
+      new T.Float32BufferAttribute(grassPositions, 3)
+    );
+    grassGeometry.setAttribute(
+      "color",
+      new T.Float32BufferAttribute(grassColors, 3)
+    );
+
+    const grassMaterial = new T.MeshBasicMaterial({
+      vertexColors: true,
+      side: T.DoubleSide,
+    });
+
+    const grassMesh = new T.Mesh(grassGeometry, grassMaterial);
+    scene.add(grassMesh);
+    // END ATTRIBUTION
+  }
+
+  // -------------------------
+  // Visual arena walls (not currently added)
+  // -------------------------
   const wallHeight = 3;
   const wallThickness = 0.5;
   const arenaSize = 300; // half-extent
@@ -86,24 +123,16 @@ export function createBasicMap(T, scene) {
     const mesh = new T.Mesh(geo, wallMat);
     mesh.position.set(x, wallHeight / 2, z);
     // RESTORE IF NECESSARY
-    //scene.add(mesh);
+    // scene.add(mesh);
     return mesh;
   }
 
   // Four walls
   const walls = [];
-  walls.push(
-    makeWall(arenaSize * 2, wallThickness, 0, -arenaSize) // front
-  );
-  walls.push(
-    makeWall(arenaSize * 2, wallThickness, 0, arenaSize) // back
-  );
-  walls.push(
-    makeWall(wallThickness, arenaSize * 2, -arenaSize, 0) // left
-  );
-  walls.push(
-    makeWall(wallThickness, arenaSize * 2, arenaSize, 0) // right
-  );
+  walls.push(makeWall(arenaSize * 2, wallThickness, 0, -arenaSize)); // north
+  walls.push(makeWall(arenaSize * 2, wallThickness, 0, arenaSize));  // south
+  walls.push(makeWall(wallThickness, arenaSize * 2, -arenaSize, 0)); // west
+  walls.push(makeWall(wallThickness, arenaSize * 2, arenaSize, 0));  // east
 
   // Return simple collision info (we'll just clamp to this box)
   return {

@@ -15,13 +15,26 @@ export class Birch extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
 
+        let birchMaterial, leafMaterial;
+
+        if (window.primitiveMode) {
+            birchMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            leafMaterial = new T.MeshStandardMaterial({ color: 0x228B22 }); // green
+        } else {
+            // Trunk
+            let tl = new T.TextureLoader().load('./env/textures/birch.jpg');
+            tl.wrapS = T.RepeatWrapping;
+            tl.wrapT = T.RepeatWrapping;
+            tl.repeat.set(1, 4);
+            birchMaterial = new T.MeshStandardMaterial({ map: tl });
+
+            // Leaves
+            let leavesTexture = new T.TextureLoader().load('./env/textures/leaves.jpg');
+            leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.8 });
+        }
+
         // Trunk
-        let tl = new T.TextureLoader().load('./env/textures/birch.jpg');
-        tl.wrapS = T.RepeatWrapping;
-        tl.wrapT = T.RepeatWrapping;
-        tl.repeat.set(1, 4);
         let trunkGeometry = new T.CylinderGeometry(0.2, 0.25, 2.5);
-        let birchMaterial = new T.MeshStandardMaterial({ map: tl });
         let trunk = new T.Mesh(trunkGeometry, birchMaterial);
         trunk.position.y += 1.25;
         this.add(trunk);
@@ -53,9 +66,7 @@ export class Birch extends T.Group {
         this.add(branch1a);
 
         // Leaves
-        let leavesTexture = new T.TextureLoader().load('./env/textures/leaves.jpg');
         let leafGeometry = new T.SphereGeometry(1.2, 8, 8);
-        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.8 });
         let leaves0 = new T.Mesh(leafGeometry, leafMaterial);
         leaves0.scale.set(1.2, 1.5, 1);
         leaves0.position.set(0, 4.5, 0);
@@ -106,13 +117,30 @@ export class Spruce extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
         this.position.copy(position);
+
+        let spruceMaterial, needlesMaterial;
+
+        if (window.primitiveMode) {
+            spruceMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            needlesMaterial = new T.MeshStandardMaterial({ color: 0x228B22 }); // green
+        } else {
+            // Trunk
+            let tl = new T.TextureLoader().load('./env/textures/spruce.jpg');
+            tl.wrapS = T.RepeatWrapping;
+            tl.wrapT = T.RepeatWrapping;
+            tl.repeat.set(1, 4);
+            spruceMaterial = new T.MeshStandardMaterial({ map: tl });
+
+            // Needles
+            let needlesTexture = new T.TextureLoader().load('./env/textures/needles.jpg');
+            needlesTexture.wrapS = T.RepeatWrapping;
+            needlesTexture.wrapT = T.RepeatWrapping;
+            needlesTexture.repeat.set(4, 4);
+            needlesMaterial = new T.MeshStandardMaterial({ map: needlesTexture, transparent: true, opacity: 0.85 });
+        }
+
         // Trunk
-        let tl = new T.TextureLoader().load('./env/textures/spruce.jpg');
-        tl.wrapS = T.RepeatWrapping;
-        tl.wrapT = T.RepeatWrapping;
-        tl.repeat.set(1, 4);
         let trunkGeometry = new T.ConeGeometry(0.15, 3.5);
-        let spruceMaterial = new T.MeshStandardMaterial({ map: tl });
         let trunk = new T.Mesh(trunkGeometry, spruceMaterial);
         trunk.position.y += 1.75;
         trunk.name = "trunk";
@@ -155,12 +183,7 @@ export class Spruce extends T.Group {
         }
 
         // Needles
-        let needlesTexture = new T.TextureLoader().load('./env/textures/needles.jpg');
-        needlesTexture.wrapS = T.RepeatWrapping;
-        needlesTexture.wrapT = T.RepeatWrapping;
-        needlesTexture.repeat.set(4, 4);
         let topNeedlesGeometry = new T.ConeGeometry(0.9, 1.45, 1000);
-        let needlesMaterial = new T.MeshStandardMaterial({ map: needlesTexture, transparent: true, opacity: 0.85 });
         let topNeedles = new T.Mesh(topNeedlesGeometry, needlesMaterial);
         topNeedles.position.set(0, 2.8, 0);
         topNeedles.name = "spruce_cluster0";
@@ -214,11 +237,27 @@ export class Oak extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
 
+        let oakMaterial, leafMaterial;
+
+        if (window.primitiveMode) {
+            oakMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            leafMaterial = new T.MeshStandardMaterial({ color: 0x228B22 }); // green
+        } else {
+            // Trunk
+            let barkTexture = new T.TextureLoader().load('./env/textures/oak.jpg');
+            oakMaterial = new T.MeshStandardMaterial({ map: barkTexture });
+
+            // Leaves
+            let leavesTexture = new T.TextureLoader().load('./env/textures/oak-leaves.jpg');
+            leavesTexture.wrapS = T.RepeatWrapping;
+            leavesTexture.wrapT = T.RepeatWrapping;
+            leavesTexture.repeat.set(2, 2);
+            leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.8 });
+        }
+
         // Trunk
         let tree = new T.Group();
         let trunkGeometry = new T.CylinderGeometry(0.5, 0.7, 2.6);
-        let barkTexture = new T.TextureLoader().load('./env/textures/oak.jpg');
-        let oakMaterial = new T.MeshStandardMaterial({ map: barkTexture });
         let trunk = new T.Mesh(trunkGeometry, oakMaterial);
         trunk.position.y += 1.3;
         tree.add(trunk);
@@ -246,12 +285,7 @@ export class Oak extends T.Group {
         branch4.rotation.x = Math.PI / 6;
         this.add(branch4);
         // Leaves
-        let leavesTexture = new T.TextureLoader().load('./env/textures/oak-leaves.jpg');
-        leavesTexture.wrapS = T.RepeatWrapping;
-        leavesTexture.wrapT = T.RepeatWrapping;
-        leavesTexture.repeat.set(2, 2);
         let leafGeometry = new T.SphereGeometry(1, 8, 8);
-        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.8 });
         let leaves0 = new T.Mesh(leafGeometry, leafMaterial);
         leaves0.scale.set(1.5, 1.2, 1.5);
         leaves0.position.set(0, 4, 0);
@@ -323,10 +357,25 @@ export class Bush extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
 
+        let stemMaterial, leafMaterial;
+
+        if (window.primitiveMode) {
+            stemMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            leafMaterial = new T.MeshStandardMaterial({ color: 0x228B22 }); // green
+        } else {
+            let tl = new T.TextureLoader().load('./env/textures/spruce.jpg');
+            stemMaterial = new T.MeshStandardMaterial({ map: tl });
+
+            // Leaves
+            let leavesTexture = new T.TextureLoader().load('./env/textures/bush.jpg');
+            leavesTexture.wrapS = T.RepeatWrapping;
+            leavesTexture.wrapT = T.RepeatWrapping;
+            leavesTexture.repeat.set(2, 2);
+            leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.8 });
+        }
+
         // Bush base
         let stemGeometry = new T.ConeGeometry(0.05, 1);
-        let tl = new T.TextureLoader().load('./env/textures/spruce.jpg');
-        let stemMaterial = new T.MeshStandardMaterial({ map: tl });
         let stem = new T.Mesh(stemGeometry, stemMaterial);
         stem.position.y += 0.5;
         this.add(stem);
@@ -346,12 +395,7 @@ export class Bush extends T.Group {
         }
 
         // Leaves
-        let leavesTexture = new T.TextureLoader().load('./env/textures/bush.jpg');
-        leavesTexture.wrapS = T.RepeatWrapping;
-        leavesTexture.wrapT = T.RepeatWrapping;
-        leavesTexture.repeat.set(2, 2);
         let leafGeometry = new T.SphereGeometry(0.5, 8, 8);
-        let leafMaterial = new T.MeshStandardMaterial({ map: leavesTexture, transparent: true, opacity: 0.8 });
         let leaves0 = new T.Mesh(leafGeometry, leafMaterial);
         leaves0.position.set(0, 0.8, 0);
         leaves0.name = "bush_cluster0";
@@ -408,15 +452,24 @@ export class Rock extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
 
-        const loader = new GLTFLoader();
-        let boulder;
-        const gltf = loader.load('./env/readyMades/rock.glb', (gltf) => {
-            boulder = gltf.scene;
+        if (window.primitiveMode) {
+            let rockMaterial = new T.MeshStandardMaterial({ color: 0x696969 }); // gray
+            let rockGeometry = new T.SphereGeometry(1, 8, 6);
+            let boulder = new T.Mesh(rockGeometry, rockMaterial);
             boulder.scale.set(0.7, 0.7, 0.7);
             boulder.position.y += 0.7;
             this.add(boulder);
-        });
-        this.add(gltf);
+        } else {
+            const loader = new GLTFLoader();
+            let boulder;
+            const gltf = loader.load('./env/readyMades/rock.glb', (gltf) => {
+                boulder = gltf.scene;
+                boulder.scale.set(0.7, 0.7, 0.7);
+                boulder.position.y += 0.7;
+                this.add(boulder);
+            });
+            this.add(gltf);
+        }
 
         // Place and rescale based on passed params
         this.position.copy(position);
@@ -430,26 +483,40 @@ export class House extends T.Group {
 
         let roof = new T.Group();
 
-        let wallWindowTexture = new T.TextureLoader().load('./env/textures/house-window.jpg');
-        let wallDoorTexture = new T.TextureLoader().load('./env/textures/house-door.jpg');
-        let roofTexture = new T.TextureLoader().load('./env/textures/house-roof.jpg');
-        let gableTexture = new T.TextureLoader().load('./env/textures/house-gable.jpg');
-        gableTexture.wrapT = T.RepeatWrapping;
-        gableTexture.wrapS = T.RepeatWrapping;
-        roofTexture.wrapS = T.RepeatWrapping;
-        roofTexture.wrapT = T.RepeatWrapping;
-        roofTexture.repeat.set(1, 1);
+        let wallMaterial, doorMaterial, roofMaterial, gableMaterial;
+
+        if (window.primitiveMode) {
+            wallMaterial = new T.MeshStandardMaterial({ color: 0xFFFFFF }); // white
+            doorMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            roofMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            gableMaterial = new T.MeshStandardMaterial({ color: 0xFFFFFF }); // white
+        } else {
+            let wallWindowTexture = new T.TextureLoader().load('./env/textures/house-window.jpg');
+            let wallDoorTexture = new T.TextureLoader().load('./env/textures/house-door.jpg');
+            let roofTexture = new T.TextureLoader().load('./env/textures/house-roof.jpg');
+            let gableTexture = new T.TextureLoader().load('./env/textures/house-gable.jpg');
+            gableTexture.wrapT = T.RepeatWrapping;
+            gableTexture.wrapS = T.RepeatWrapping;
+            roofTexture.wrapS = T.RepeatWrapping;
+            roofTexture.wrapT = T.RepeatWrapping;
+            roofTexture.repeat.set(1, 1);
+
+            wallMaterial = new T.MeshStandardMaterial({ map: wallWindowTexture });
+            doorMaterial = new T.MeshStandardMaterial({ map: wallDoorTexture });
+            roofMaterial = new T.MeshStandardMaterial({ map: roofTexture });
+            gableMaterial = new T.MeshStandardMaterial({ map: gableTexture });
+        }
 
         // Base
         let baseGeometry = new T.BoxGeometry(7, 4, 7);
 
         let baseMaterials = [
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallDoorTexture })
+            wallMaterial,
+            wallMaterial,
+            wallMaterial,
+            wallMaterial,
+            wallMaterial,
+            doorMaterial
         ];
 
         let base = new T.Mesh(baseGeometry, baseMaterials);
@@ -493,7 +560,6 @@ export class House extends T.Group {
             2.22, 1
         ]);
         roofGeometry.setAttribute("uv", new T.BufferAttribute(uvs, 2));
-        let roofMaterial = new T.MeshStandardMaterial({ map: roofTexture, wireframe: false, side: T.DoubleSide });
         let roofMesh = new T.Mesh(roofGeometry, roofMaterial);
         roof.add(roofMesh);
 
@@ -523,7 +589,6 @@ export class House extends T.Group {
         ]);
 
         gableGeometry.setAttribute("uv", new T.BufferAttribute(uvs2, 2));
-        let gableMaterial = new T.MeshStandardMaterial({ map: gableTexture, wireframe: false, side: T.DoubleSide });
         let gableMesh = new T.Mesh(gableGeometry, gableMaterial);
         roof.add(gableMesh);
         this.add(roof);
@@ -540,23 +605,35 @@ export class LargeHouse extends T.Group {
 
         let roof = new T.Group();
 
-        let wallWindowTexture = new T.TextureLoader().load('./env/textures/red-window.jpg');
-        let wallDoorTexture = new T.TextureLoader().load('./env/textures/red-door.jpg');
-        let roofTexture = new T.TextureLoader().load('./env/textures/house-roof.jpg');
-        roofTexture.wrapS = T.RepeatWrapping;
-        roofTexture.wrapT = T.RepeatWrapping;
-        roofTexture.repeat.set(1, 1);
+        let wallMaterial, doorMaterial, roofMaterial;
+
+        if (window.primitiveMode) {
+            wallMaterial = new T.MeshStandardMaterial({ color: 0xFF0000 }); // red
+            doorMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            roofMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+        } else {
+            let wallWindowTexture = new T.TextureLoader().load('./env/textures/red-window.jpg');
+            let wallDoorTexture = new T.TextureLoader().load('./env/textures/red-door.jpg');
+            let roofTexture = new T.TextureLoader().load('./env/textures/house-roof.jpg');
+            roofTexture.wrapS = T.RepeatWrapping;
+            roofTexture.wrapT = T.RepeatWrapping;
+            roofTexture.repeat.set(1, 1);
+
+            wallMaterial = new T.MeshStandardMaterial({ map: wallWindowTexture });
+            doorMaterial = new T.MeshStandardMaterial({ map: wallDoorTexture });
+            roofMaterial = new T.MeshStandardMaterial({ map: roofTexture });
+        }
 
         // Base
         let baseGeometry = new T.BoxGeometry(9, 4, 9);
 
         let baseMaterials = [
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallWindowTexture }),
-            new T.MeshStandardMaterial({ map: wallDoorTexture })
+            wallMaterial,
+            wallMaterial,
+            wallMaterial,
+            wallMaterial,
+            wallMaterial,
+            doorMaterial
         ];
 
         let base = new T.Mesh(baseGeometry, baseMaterials);
@@ -588,7 +665,6 @@ export class LargeHouse extends T.Group {
             1, 1
         ]);
         roofGeometry.setAttribute("uv", new T.BufferAttribute(uvs, 2));
-        let roofMaterial = new T.MeshStandardMaterial({ map: roofTexture, wireframe: false, side: T.DoubleSide });
         let roofMesh = new T.Mesh(roofGeometry, roofMaterial);
         roof.add(roofMesh);
         this.add(roof);
@@ -603,15 +679,23 @@ export class Tavern extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
 
-        const loader = new GLTFLoader();
-        let tavern;
-        const gltf = loader.load('./env/readyMades/tavern.glb', (gltf) => {
-            tavern = gltf.scene;
-            tavern.scale.set(1.7, 1.7, 1.7);
-            tavern.position.y += 1.7;
+        if (window.primitiveMode) {
+            let tavernMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            let tavernGeometry = new T.BoxGeometry(5, 3, 5);
+            let tavern = new T.Mesh(tavernGeometry, tavernMaterial);
+            tavern.position.y += 1.5;
             this.add(tavern);
-        });
-        this.add(gltf);
+        } else {
+            const loader = new GLTFLoader();
+            let tavern;
+            const gltf = loader.load('./env/readyMades/tavern.glb', (gltf) => {
+                tavern = gltf.scene;
+                tavern.scale.set(1.7, 1.7, 1.7);
+                tavern.position.y += 1.7;
+                this.add(tavern);
+            });
+            this.add(gltf);
+        }
 
         // Place and rescale based on passed params
         this.position.copy(position);
@@ -623,15 +707,23 @@ export class Well extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
 
-        const loader = new GLTFLoader();
-        let well;
-        const gltf = loader.load('./env/readyMades/well.glb', (gltf) => {
-            well = gltf.scene;
-            well.scale.set(1.7, 1.7, 1.7);
-            well.position.y += 1.7;
+        if (window.primitiveMode) {
+            let wellMaterial = new T.MeshStandardMaterial({ color: 0x696969 }); // gray
+            let wellGeometry = new T.CylinderGeometry(1, 1, 2);
+            let well = new T.Mesh(wellGeometry, wellMaterial);
+            well.position.y += 1;
             this.add(well);
-        });
-        this.add(gltf);
+        } else {
+            const loader = new GLTFLoader();
+            let well;
+            const gltf = loader.load('./env/readyMades/well.glb', (gltf) => {
+                well = gltf.scene;
+                well.scale.set(1.7, 1.7, 1.7);
+                well.position.y += 1.7;
+                this.add(well);
+            });
+            this.add(gltf);
+        }
 
         // Place and rescale based on passed params
         this.position.copy(position);
@@ -643,15 +735,23 @@ export class Barrel extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
 
-        const loader = new GLTFLoader();
-        let barrel;
-        const gltf = loader.load('./env/readyMades/barrel.glb', (gltf) => {
-            barrel = gltf.scene;
-            barrel.position.y += 0.7;
-            barrel.scale.set(0.5, 0.7, 0.5);
+        if (window.primitiveMode) {
+            let barrelMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            let barrelGeometry = new T.CylinderGeometry(0.5, 0.5, 1);
+            let barrel = new T.Mesh(barrelGeometry, barrelMaterial);
+            barrel.position.y += 0.5;
             this.add(barrel);
-        });
-        this.add(gltf);
+        } else {
+            const loader = new GLTFLoader();
+            let barrel;
+            const gltf = loader.load('./env/readyMades/barrel.glb', (gltf) => {
+                barrel = gltf.scene;
+                barrel.position.y += 0.7;
+                barrel.scale.set(0.5, 0.7, 0.5);
+                this.add(barrel);
+            });
+            this.add(gltf);
+        }
 
         // Place and rescale based on passed params
         this.position.copy(position);
@@ -663,15 +763,23 @@ export class DungeonEntrance extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
 
-        const loader = new GLTFLoader();
-        let cave;
-        const gltf = loader.load('./env/readyMades/cave.glb', (gltf) => {
-            cave = gltf.scene;
-            cave.position.y += 0.7;
-            cave.scale.set(0.5, 0.7, 0.5);
+        if (window.primitiveMode) {
+            let caveMaterial = new T.MeshStandardMaterial({ color: 0x2F2F2F }); // dark gray
+            let caveGeometry = new T.BoxGeometry(2, 2, 2);
+            let cave = new T.Mesh(caveGeometry, caveMaterial);
+            cave.position.y = 1;
             this.add(cave);
-        });
-        this.add(gltf);
+        } else {
+            const loader = new GLTFLoader();
+            let cave;
+            const gltf = loader.load('./env/readyMades/cave.glb', (gltf) => {
+                cave = gltf.scene;
+                cave.position.y += 0.7;
+                cave.scale.set(0.5, 0.7, 0.5);
+                this.add(cave);
+            });
+            this.add(gltf);
+        }
 
         // Place and rescale based on passed params
         this.position.copy(position);
@@ -687,14 +795,22 @@ export class Hand extends T.Group {
         let dur = this.swingDuration;
         this.totalTime = 0;
 
-        // Load the model
-        const loader = new GLTFLoader();
-        loader.load("./env/readyMades/hand.glb", (gltf) => {
-            const hand = gltf.scene;
-            hand.position.y += 0.7;
-            hand.scale.set(0.5, 0.7, 0.5);
+        if (window.primitiveMode) {
+            let handMaterial = new T.MeshStandardMaterial({ color: 0xF5DEB3 }); // wheat
+            let handGeometry = new T.BoxGeometry(0.5, 1, 0.2);
+            let hand = new T.Mesh(handGeometry, handMaterial);
+            hand.position.y += 0.5;
             this.add(hand);
-        });
+        } else {
+            // Load the model
+            const loader = new GLTFLoader();
+            loader.load("./env/readyMades/hand.glb", (gltf) => {
+                const hand = gltf.scene;
+                hand.position.y += 0.7;
+                hand.scale.set(0.5, 0.7, 0.5);
+                this.add(hand);
+            });
+        }
 
         // Place and rescale based on passed params
         this.position.copy(position);
@@ -741,14 +857,22 @@ export class Bow extends T.Group {
         let dur = this.swingDuration;
         this.totalTime = 0;
 
-        // Load the model
-        const loader = new GLTFLoader();
-        loader.load("./env/readyMades/bow.glb", (gltf) => {
-            const bow = gltf.scene;
-            bow.position.y += 0.7;
-            bow.scale.set(1, 1, 2);
+        if (window.primitiveMode) {
+            let bowMaterial = new T.MeshStandardMaterial({ color: 0x8B4513 }); // brown
+            let bowGeometry = new T.CylinderGeometry(0.1, 0.1, 2);
+            let bow = new T.Mesh(bowGeometry, bowMaterial);
+            bow.position.y += 1;
             this.add(bow);
-        });
+        } else {
+            // Load the model
+            const loader = new GLTFLoader();
+            loader.load("./env/readyMades/bow.glb", (gltf) => {
+                const bow = gltf.scene;
+                bow.position.y += 0.7;
+                bow.scale.set(1, 1, 2);
+                this.add(bow);
+            });
+        }
 
         // Place and rescale based on passed params
         this.position.copy(position);
@@ -791,14 +915,22 @@ export class Dagger extends T.Group {
     constructor(position = new T.Vector3(0, 0, 0), scale = 1) {
         super();
 
-        // Load the model
-        const loader = new GLTFLoader();
-        loader.load("./env/readyMades/dagger.glb", (gltf) => {
-            const dagger = gltf.scene;
-            dagger.position.y += 0.7;          // your original offset
-            dagger.scale.set(0.5, 0.7, 0.5);   // your original scale
+        if (window.primitiveMode) {
+            let daggerMaterial = new T.MeshStandardMaterial({ color: 0xC0C0C0 }); // silver
+            let daggerGeometry = new T.BoxGeometry(0.1, 1, 0.1);
+            let dagger = new T.Mesh(daggerGeometry, daggerMaterial);
+            dagger.position.y += 0.5;
             this.add(dagger);
-        });
+        } else {
+            // Load the model
+            const loader = new GLTFLoader();
+            loader.load("./env/readyMades/dagger.glb", (gltf) => {
+                const dagger = gltf.scene;
+                dagger.position.y += 0.7;          // your original offset
+                dagger.scale.set(0.5, 0.7, 0.5);   // your original scale
+                this.add(dagger);
+            });
+        }
 
         // Place and rescale based on passed params
         this.position.copy(position);
@@ -1031,57 +1163,80 @@ export class Npc extends T.Group {
 
         this.mixer = null;
 
-        const loader = new GLTFLoader();
-        let path;
-        if (mobType === "bandit")
-            path = "./env/readyMades/bandit.glb";
-        else if (mobType === "caster")
-            path = "./env/readyMades/caster.glb";
-        else if (mobType === "devil")
-            path = "./env/readyMades/devil.glb";
-        else if (mobType === "innkeeper")
-            path = "./env/readyMades/innkeeper.glb";
-        else {
-            console.error(`Mob type "${mobType}" not recognized!`);
-            return;
-        }
+        if (window.primitiveMode) {
+            let npcMaterial, npcGeometry;
+            if (mobType === "bandit") {
+                npcMaterial = new T.MeshStandardMaterial({ color: 0x8B0000 }); // dark red
+                npcGeometry = new T.BoxGeometry(1, 2, 1);
+            } else if (mobType === "caster") {
+                npcMaterial = new T.MeshStandardMaterial({ color: 0x00008B }); // dark blue
+                npcGeometry = new T.SphereGeometry(1, 8, 8);
+            } else if (mobType === "devil") {
+                npcMaterial = new T.MeshStandardMaterial({ color: 0xFF0000 }); // red
+                npcGeometry = new T.ConeGeometry(1, 2);
+            } else if (mobType === "innkeeper") {
+                npcMaterial = new T.MeshStandardMaterial({ color: 0xFFFF00 }); // yellow
+                npcGeometry = new T.CylinderGeometry(1, 1, 2);
+            } else {
+                console.error(`Mob type "${mobType}" not recognized!`);
+                return;
+            }
+            let npc = new T.Mesh(npcGeometry, npcMaterial);
+            npc.position.y += 1;
+            this.add(npc);
+        } else {
+            const loader = new GLTFLoader();
+            let path;
+            if (mobType === "bandit")
+                path = "./env/readyMades/bandit.glb";
+            else if (mobType === "caster")
+                path = "./env/readyMades/caster.glb";
+            else if (mobType === "devil")
+                path = "./env/readyMades/devil.glb";
+            else if (mobType === "innkeeper")
+                path = "./env/readyMades/innkeeper.glb";
+            else {
+                console.error(`Mob type "${mobType}" not recognized!`);
+                return;
+            }
 
-        loader.load(path, (gltf) => {
-            const caster = gltf.scene;
-            caster.traverse((child) => {
-                if (child.isMesh && child.material) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
+            loader.load(path, (gltf) => {
+                const caster = gltf.scene;
+                caster.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
 
-                    let mat = child.material;
+                        let mat = child.material;
 
-                    // Force opaque rendering
-                    mat.transparent = false;
-                    mat.alphaTest = 0.0;
-                    mat.depthWrite = true;
-                    mat.depthTest = true;
-                    mat.blending = T.NormalBlending;
+                        // Force opaque rendering
+                        mat.transparent = false;
+                        mat.alphaTest = 0.0;
+                        mat.depthWrite = true;
+                        mat.depthTest = true;
+                        mat.blending = T.NormalBlending;
 
-                    // If alpha channel exists in texture, ignore it
-                    if (mat.alphaMap) {
-                        mat.alphaMap = null;
+                        // If alpha channel exists in texture, ignore it
+                        if (mat.alphaMap) {
+                            mat.alphaMap = null;
+                        }
                     }
+                });
+
+                // Keep the model compact relative to the player scale
+                caster.scale.set(0.8, 0.8, 0.8);
+                this.add(caster);
+
+                if (gltf.animations && gltf.animations.length > 0) {
+                    this.mixer = new T.AnimationMixer(caster);
+                    gltf.animations.forEach((clip) => {
+                        const action = this.mixer.clipAction(clip);
+                        action.setLoop(T.LoopRepeat, Infinity);
+                        action.play();
+                    });
                 }
             });
-
-            // Keep the model compact relative to the player scale
-            caster.scale.set(0.8, 0.8, 0.8);
-            this.add(caster);
-
-            if (gltf.animations && gltf.animations.length > 0) {
-                this.mixer = new T.AnimationMixer(caster);
-                gltf.animations.forEach((clip) => {
-                    const action = this.mixer.clipAction(clip);
-                    action.setLoop(T.LoopRepeat, Infinity);
-                    action.play();
-                });
-            }
-        });
+        }
 
         this.position.copy(position);
         this.scale.set(this.scale.x * scale, this.scale.y * scale, this.scale.z * scale);

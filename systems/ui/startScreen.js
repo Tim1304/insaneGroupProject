@@ -187,6 +187,25 @@ function injectStartScreenStyles() {
     .startBtn:hover{ transform: translateY(-1px); filter: brightness(1.03); }
     .startBtn:active{ transform: translateY(0px) scale(.99); filter: brightness(.98); }
 
+    .startBtnRow{
+      margin-top: 6px;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .startBtn.secondary{
+      color: rgba(255,255,255,.92);
+      background: rgba(0,0,0,.35);
+      border: 1px solid rgba(246,210,122,.30);
+      box-shadow:
+        0 18px 40px rgba(0,0,0,.35),
+        inset 0 1px 0 rgba(255,255,255,.10);
+    }
+
+    .startBtn.secondary:hover{ filter: brightness(1.06); }
+
     .hint{
       margin-top: 16px;
       font-size: 12px;
@@ -244,10 +263,21 @@ function createStartOverlay() {
   const divider = document.createElement("div");
   divider.className = "divider";
 
-  const btn = document.createElement("button");
-  btn.className = "startBtn";
-  btn.type = "button";
-  btn.textContent = "START";
+  const btnRow = document.createElement("div");
+  btnRow.className = "startBtnRow";
+
+  const btnFull = document.createElement("button");
+  btnFull.className = "startBtn";
+  btnFull.type = "button";
+  btnFull.textContent = "START (FULL)";
+
+  const btnProto = document.createElement("button");
+  btnProto.className = "startBtn secondary";
+  btnProto.type = "button";
+  btnProto.textContent = "START (PROTOTYPE)";
+
+  btnRow.appendChild(btnFull);
+  btnRow.appendChild(btnProto);
 
   const hint = document.createElement("div");
   hint.className = "hint";
@@ -262,19 +292,21 @@ function createStartOverlay() {
   panel.appendChild(sub);
   panel.appendChild(metaRow);
   panel.appendChild(divider);
-  panel.appendChild(btn);
+  panel.appendChild(btnRow);
   panel.appendChild(hint);
   panel.appendChild(err);
 
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
-  return { overlay, btn, err };
+  return { overlay, btnFull, btnProto, err };
 }
 
-async function bootGameAfterStart({ overlay, btn, err }) {
-  btn.disabled = true;
-  btn.textContent = "LOADING...";
+async function bootGameAfterStart({ overlay, btnFull, btnProto, err }, mode) {
+  btnFull.disabled = true;
+  btnProto.disabled = true;
+  btnFull.textContent = "LOADING...";
+  btnProto.textContent = "LOADING...";
 
   try {
     // This guarantees game.js doesn't execute until *now*.
@@ -288,7 +320,8 @@ async function bootGameAfterStart({ overlay, btn, err }) {
     }
 
     // Start the game (all renderer/scene setup happens inside startGame)
-    mod.startGame();
+    // We pass a mode so game.js can choose FULL vs PROTOTYPE.
+    mod.startGame({ mode });
 
     // Remove overlay
     overlay.remove();
@@ -303,13 +336,16 @@ async function bootGameAfterStart({ overlay, btn, err }) {
       "Failed to start the game.\n\n" +
       (e && e.message ? e.message : String(e));
 
-    btn.disabled = false;
-    btn.textContent = "START";
+    btnFull.disabled = false;
+    btnProto.disabled = false;
+    btnFull.textContent = "START (FULL)";
+    btnProto.textContent = "START (PROTOTYPE)";
   }
 }
 
 window.addEventListener("DOMContentLoaded", () => {
   injectStartScreenStyles();
   const ui = createStartOverlay();
-  ui.btn.addEventListener("click", () => bootGameAfterStart(ui));
+  ui.btnFull.addEventListener("click", () => bootGameAfterStart(ui, "full"));
+  ui.btnProto.addEventListener("click", () => bootGameAfterStart(ui, "prototype"));
 });
