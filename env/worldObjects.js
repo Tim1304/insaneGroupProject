@@ -503,9 +503,12 @@ export class House extends T.Group {
 
             wallMaterial = new T.MeshStandardMaterial({ map: wallWindowTexture });
             doorMaterial = new T.MeshStandardMaterial({ map: wallDoorTexture });
-            roofMaterial = new T.MeshStandardMaterial({ map: roofTexture, side = T.DoubleSide });
+            roofMaterial = new T.MeshStandardMaterial({ map: roofTexture });
             gableMaterial = new T.MeshStandardMaterial({ map: gableTexture });
         }
+
+        roofMaterial.side = T.DoubleSide;
+        gableMaterial.side = T.DoubleSide;
 
         // Base
         let baseGeometry = new T.BoxGeometry(7, 4, 7);
@@ -562,6 +565,18 @@ export class House extends T.Group {
         roofGeometry.setAttribute("uv", new T.BufferAttribute(uvs, 2));
         let roofMesh = new T.Mesh(roofGeometry, roofMaterial);
         roof.add(roofMesh);
+
+        const innerRoofGeom = roofGeometry.clone();
+
+        // Flip by scaling the mesh -1 on Y (inverts winding effectively)
+        const innerRoofMat = roofMaterial.clone();
+        innerRoofMat.side = T.FrontSide; // we only need the "inside" face now
+
+        const innerRoofMesh = new T.Mesh(innerRoofGeom, innerRoofMat);
+        innerRoofMesh.scale.y = -1;          // flip faces
+        innerRoofMesh.position.y = -0.02;    // tiny offset to avoid z-fighting
+
+        roof.add(innerRoofMesh);
 
         let gableGeometry = new T.BufferGeometry();
         let gableVertices = new Float32Array([
