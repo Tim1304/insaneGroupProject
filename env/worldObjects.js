@@ -535,8 +535,8 @@ export class House extends T.Group {
             3.5, 4, 3.5,
             0, 6, -3.5,
             0, 6, 3.5,
-            0, 6, -3.5,
-            0, 6, 3.5
+            0, 6, -4.5,
+            0, 6, 4.5
         ]);
         roofGeometry.setAttribute("position", new T.BufferAttribute(roofVertices, 3));
         roofGeometry.setIndex([
